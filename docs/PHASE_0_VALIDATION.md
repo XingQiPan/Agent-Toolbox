@@ -49,8 +49,8 @@ Expected result:
 - `pnpm build` runs `tsc` for `packages/core`, `packages/plugin-sdk`,
   `plugins/json-basic`, `apps/api`, and `apps/cli`.
 - `pnpm test` runs `pnpm build` and Vitest.
-- Vitest reports `1 passed` test file and `2 passed` tests in the Phase 0
-  baseline.
+- Vitest reports `2 passed` test files and `17 passed` tests in the integrated
+  Phase 0 tree.
 
 ## CLI Validation
 
@@ -63,8 +63,9 @@ pnpm --filter @agent-toolbox/cli dev -- plugin list
 Expected behavior:
 
 - Exit code is `0`.
-- JSON includes one plugin with `id: "json.basic"`.
-- `tools_count` is `2`.
+- Output has `ok: true`.
+- `data.plugins` includes one plugin with `id: "json.basic"`.
+- `data.plugins[0].tools_count` is `2`.
 
 Search JSON tools:
 
@@ -75,7 +76,8 @@ pnpm --filter @agent-toolbox/cli dev -- tool search json
 Expected behavior:
 
 - Exit code is `0`.
-- `tools` includes `json.format` and `json.validate`.
+- Output has `ok: true`.
+- `data.tools` includes `json.format` and `json.validate`.
 - Each tool includes `name`, `title`, `description`, `category`,
   `risk_level`, `input_schema`, `output_schema`, and `plugin_id`.
 - `plugin_id` is `json.basic`.
@@ -89,9 +91,10 @@ pnpm --filter @agent-toolbox/cli dev -- tool info json.format
 Expected behavior:
 
 - Exit code is `0`.
-- Output describes `json.format`.
-- `input_schema.required` includes `text`.
-- `output_schema.required` includes `formatted`.
+- Output has `ok: true`.
+- `data.tool` describes `json.format`.
+- `data.tool.input_schema.required` includes `text`.
+- `data.tool.output_schema.required` includes `formatted`.
 
 Run JSON formatting:
 
@@ -133,7 +136,9 @@ pnpm --filter @agent-toolbox/cli dev -- tool info missing.tool
 Expected behavior:
 
 - Exit code is non-zero.
-- stderr includes `Tool not found: missing.tool`.
+- stdout is a JSON error envelope.
+- stderr is empty.
+- `error.code` is `TOOL_NOT_FOUND`.
 
 ## API Validation
 
@@ -217,9 +222,21 @@ Invoke-RestMethod http://127.0.0.1:8787/v1/tools/json.format/run `
 Expected behavior:
 
 - Response has top-level `ok: true`.
-- `data.ok` is `true`.
 - `data.result.data.formatted` equals `"{\n  \"name\": \"aitbx\"\n}"`.
 - `data.usage.cost_usd` is `0`.
+
+Read audit calls:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8787/v1/audit/calls
+```
+
+Expected behavior:
+
+- Response has top-level `ok: true`.
+- `data.calls` contains the tool call made above.
+- Each call includes `id`, `tool_name`, `plugin_id`, `status`, `duration_ms`,
+  `created_at`, and `finished_at`.
 
 Missing tool:
 
@@ -240,8 +257,8 @@ Phase 0 is valid when:
 - Build and tests pass from a clean install.
 - CLI can list the `json.basic` plugin, search tools, inspect tool metadata, and
   run both JSON tools.
-- API can serve health, plugin list, tool search, tool detail, and tool run
-  endpoints using the unified `{ ok, data, error }` envelope.
+- API can serve health, plugin list, tool search, tool detail, tool run, and
+  audit log endpoints using the unified `{ ok, data, error }` envelope.
 - `json.format` and `json.validate` are low-risk built-in tools with no file,
   network, secret, or shell permissions.
 - Runtime tool calls return structured results with `summary`, `artifacts`,
