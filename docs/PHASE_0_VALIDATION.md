@@ -284,9 +284,16 @@ Expected behavior:
 
 - Vite serves the console on `http://127.0.0.1:5173` or the next available port.
 - The console shows API status as connected.
-- The dashboard shows plugin, tool, and audit counts.
-- Selecting `json.format` shows its input schema and editable JSON input.
+- The home page shows plugin, tool, and audit counts.
+- The top navigation switches between home, image compression, regex collection,
+  JSON tools, and audit pages.
+- Navigation updates the address bar, so `/image-compress` and
+  `/regex-collection` can be refreshed or shared during demos.
+- The image compression page lets a user upload an image, adjust quality,
+  maximum dimensions, and output format, preview before/after images, and
+  download the compressed file.
+- The regex collection page lets a user search common regex recipes, edit or
+  copy a pattern, edit flags and test text, and view match results.
+- Selecting `json.format` shows editable JSON input.
 - Running the tool displays the formatted JSON result and appends an audit call.
-- The top navigation switches between tool gallery, runner, plugins, and audit.
-- Local browser tools such as Base64, URL encoding, timestamp conversion, UUID,
-  naming conversion, and color conversion can run without API calls.
+- Local image compression and regex testing can run without API calls.

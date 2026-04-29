@@ -79,18 +79,18 @@ $env:AITBX_API_TARGET = "http://127.0.0.1:8787"
 pnpm --filter @agent-toolbox/web dev
 ```
 
-## Web 控制台能做什么
+## Web 操作界面能做什么
 
-Web 控制台参考了在线工具箱网站的搜索、分类和工具卡片体验，同时保留 Agent Toolbox 的 API 和审计能力。
+Web 界面参考了 MagicalBox 一类在线工具箱的首页、图片压缩页和正则大全页，目标是“人打开就能用”，同时保留 Agent Toolbox 的 API 和审计能力。
 
 当前界面支持：
 
-- 分类切换：工具箱、运行台、插件、审计。
-- 工具搜索：按名称、描述、类型搜索工具。
+- 页面切换：首页、图片压缩、正则大全、JSON 工具、审计，并支持浏览器前进后退。
+- 首页搜索：按图片、正则、JSON、PDF、二维码等关键词查找入口。
+- 图片压缩：上传图片后在浏览器本地压缩，支持质量、最大宽高、JPG/PNG/WebP 输出、预览和下载。
+- 正则大全：搜索常用正则，编辑/复制表达式，输入测试文本并查看匹配结果。
 - API 工具：`json.format`、`json.validate`。
-- 浏览器本地工具：Base64 编码/解码、URL 编码/解码、文本统计、时间戳转换、UUID 生成、命名格式转换、颜色格式转换。
-- 计划插件展示：图片压缩、PDF 合并、二维码生成等后续工具入口。
-- 审计记录：查看 API 工具调用和本地工具调用。
+- 审计记录：查看 API 工具调用和浏览器本地工具调用。
 
 ## CLI 示例
 
@@ -135,7 +135,7 @@ pnpm --filter @agent-toolbox/cli dev -- tool run json.validate --json '{"text":"
 
 ## 当前 Phase 0 能力
 
-- 人可以通过 Web 控制台查看插件、搜索工具、编辑 JSON 输入、运行工具、查看结果和审计日志。
+- 人可以通过 Web 界面搜索工具、压缩图片、测试正则、编辑 JSON 输入、运行工具、查看结果和审计日志。
 - AI 或脚本可以通过 API 调用工具。
 - 开发者可以通过 CLI 调试工具。
 - 运行时会做基础输入校验，并记录工具调用审计。
@@ -144,6 +144,6 @@ pnpm --filter @agent-toolbox/cli dev -- tool run json.validate --json '{"text":"
 
 - Phase 1：持久化插件安装、SQLite 存储、更多 API/CLI 能力。
 - Phase 2：File Artifact Service，支持文件上传、下载和 `file_id`。
-- Phase 3：PDF、图片等真实工具插件。
+- Phase 3：PDF、批量图片等真实工具插件。
 - Phase 4：AI Gateway，支持低 token 工具搜索和 schema 懒加载。
 - Phase 5：MCP 与 Skill 适配。
