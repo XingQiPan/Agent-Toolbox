@@ -156,7 +156,7 @@ p {
 }
 
 .icon-button,
-.login-button,
+.runtime-pill,
 .ghost-tool {
   border: 0;
   background: transparent;
@@ -172,16 +172,32 @@ p {
   color: var(--ink);
 }
 
-.login-button {
+.runtime-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-height: 36px;
-  padding: 0 18px;
+  padding: 0 13px;
   border-radius: 999px;
-  background: var(--black);
-  color: #ffffff;
+  background: #f2f3f5;
+  color: var(--ink);
   font-weight: 700;
+}
+
+.runtime-pill small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.runtime-pill.ok {
+  background: #eef8f2;
+  color: #157347;
+}
+
+.runtime-pill.error {
+  background: #fff3f1;
+  color: #b42318;
 }
 
 .app-layout {

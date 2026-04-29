@@ -284,8 +284,8 @@ Expected behavior:
 
 - Vite serves the console on `http://127.0.0.1:5173` or the next available port.
 - The console shows API status as connected.
-- The top bar shows brand, function list, global search, refresh, filter, and
-  login controls.
+- The top bar shows brand, function list, global search, refresh, and
+  Runtime/API status controls.
 - The left sidebar switches home categories such as daily, query, document,
   intelligent, image, audio, video, text, encryption, unit, and life tools.
 - The home page shows a gray-card tool grid with usable tools and planned tools.

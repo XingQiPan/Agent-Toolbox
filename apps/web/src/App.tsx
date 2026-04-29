@@ -42,7 +42,6 @@ import {
   Sun,
   Type,
   UploadCloud,
-  UserRound,
   Video
 } from "lucide-react";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -678,12 +677,10 @@ export function App() {
           <button type="button" className="icon-button" title="刷新 API" onClick={refresh}>
             <RefreshCcw size={18} />
           </button>
-          <button type="button" className="icon-button" title="筛选">
-            <SlidersHorizontal size={18} />
-          </button>
-          <button type="button" className="login-button">
-            <UserRound size={15} />
-            登录
+          <button type="button" className={`runtime-pill ${health}`} onClick={() => navigate("audit")} title="查看 Runtime 调用审计">
+            <span className={`status-dot ${health}`} />
+            <span>{health === "ok" ? "API 已连接" : health === "checking" ? "检查中" : "API 未连接"}</span>
+            <small>{plugins.length} 插件 · {apiTools.length} 工具</small>
           </button>
         </div>
       </header>
