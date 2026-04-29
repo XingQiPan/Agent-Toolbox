@@ -51,14 +51,18 @@ import {
   type ApprovalSummary,
   type AuditCall,
   type FileSummary,
+  type McpEndpointInfo,
+  type McpTool,
+  type McpToolCallResult,
   type PluginSummary,
   type SecurityPolicy,
+  type SkillSummary,
   type ToolSecurityProfile,
   type ToolRunResponse,
   type ToolSummary
 } from "./api.js";
 
-type PageId = "home" | "image-compress" | "regex-collection" | "json-tools" | "files" | "ai-access" | "security" | "audit";
+type PageId = "home" | "image-compress" | "regex-collection" | "json-tools" | "files" | "ai-access" | "skills-mcp" | "security" | "audit";
 type ImageFormat = "image/jpeg" | "image/png" | "image/webp";
 type AppIcon = typeof Home;
 
@@ -111,6 +115,7 @@ const pages: Array<{ id: PageId; label: string }> = [
   { id: "json-tools", label: "数据工具" },
   { id: "files", label: "文件产物" },
   { id: "ai-access", label: "智能体接入" },
+  { id: "skills-mcp", label: "Skills / MCP" },
   { id: "security", label: "权限审批" },
   { id: "audit", label: "审计" }
 ];
@@ -160,6 +165,12 @@ const pinnedTools: HomeTool[] = [
     description: "查看可给智能体接入的接口",
     icon: Bot,
     page: "ai-access"
+  },
+  {
+    title: "Skills / MCP",
+    description: "查看工作流说明和 MCP 工具桥接",
+    icon: Sparkles,
+    page: "skills-mcp"
   },
   {
     title: "权限审批",
@@ -228,6 +239,7 @@ const homeSections: HomeSection[] = [
       { title: "数据验证", description: "验证结构化文本", icon: CheckCircle2, page: "json-tools", apiTool: "json.validate" },
       { title: "调用审计", description: "查看接口和本地工具调用", icon: Database, page: "audit" },
       { title: "智能体接入", description: "查看工具搜索、详情和执行接口", icon: Bot, page: "ai-access" },
+      { title: "Skills / MCP", description: "工作流说明与 MCP 工具桥接", icon: Sparkles, page: "skills-mcp" },
       { title: "权限审批", description: "查看风险等级和审批记录", icon: ShieldCheck, page: "security" },
       { title: "文件产物", description: "为工具和智能体准备文件标识", icon: FileText, page: "files" },
       { title: "工具搜索", description: "按能力搜索工具", icon: Search, planned: true },
@@ -455,6 +467,22 @@ function localizeApprovalStatus(status: ApprovalSummary["status"]): string {
   return names[status];
 }
 
+function localizeSkillStatus(status: SkillSummary["status"]): string {
+  return status === "available" ? "可用" : "规划中";
+}
+
+function mcpExampleForTool(toolName: string): string {
+  if (toolName === "json_format") {
+    return '{\n  "text": "{\\"name\\":\\"aitbx\\"}",\n  "indent": 2\n}';
+  }
+
+  if (toolName === "json_validate") {
+    return '{\n  "text": "{\\"name\\":\\"aitbx\\"}"\n}';
+  }
+
+  return "{}";
+}
+
 function formatPermissions(permissions: ToolSecurityProfile["permissions"]): string[] {
   return [
     permissions.filesystem.length > 0 ? `文件：${permissions.filesystem.join("、")}` : "文件：无",
@@ -513,7 +541,7 @@ function pageCategory(page: PageId, homeCategory: string): string {
   if (page === "image-compress") return "图片应用";
   if (page === "regex-collection") return "文字应用";
   if (page === "files") return "文档应用";
-  if (page === "json-tools" || page === "ai-access" || page === "security" || page === "audit") return "智能应用";
+  if (page === "json-tools" || page === "ai-access" || page === "skills-mcp" || page === "security" || page === "audit") return "智能应用";
   return "首页";
 }
 
@@ -534,6 +562,9 @@ export function App() {
   const [recommendedFlow, setRecommendedFlow] = useState<string[]>([]);
   const [securityPolicy, setSecurityPolicy] = useState<SecurityPolicy | null>(null);
   const [approvals, setApprovals] = useState<ApprovalSummary[]>([]);
+  const [skills, setSkills] = useState<SkillSummary[]>([]);
+  const [mcpInfo, setMcpInfo] = useState<McpEndpointInfo | null>(null);
+  const [mcpTools, setMcpTools] = useState<McpTool[]>([]);
   const [files, setFiles] = useState<FileSummary[]>([]);
   const [auditCalls, setAuditCalls] = useState<AuditCall[]>([]);
   const [localHistory, setLocalHistory] = useState<LocalHistoryItem[]>([]);
@@ -561,6 +592,10 @@ export function App() {
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [approvalMessage, setApprovalMessage] = useState<string | null>(null);
   const [creatingApprovalFor, setCreatingApprovalFor] = useState<string | null>(null);
+  const [selectedMcpTool, setSelectedMcpTool] = useState("json_format");
+  const [mcpArguments, setMcpArguments] = useState(mcpExampleForTool("json_format"));
+  const [mcpResult, setMcpResult] = useState<McpToolCallResult | null>(null);
+  const [isMcpRunning, setIsMcpRunning] = useState(false);
 
   const [selectedRegexId, setSelectedRegexId] = useState(regexRecipes[0].id);
   const [regexSearch, setRegexSearch] = useState("");
@@ -614,18 +649,34 @@ export function App() {
   const totalAuditCount = auditCalls.length + localHistory.length;
   const totalToolCount = pinnedTools.length + homeSections.reduce((count, section) => count + section.tools.length, 0);
   const activeApprovalCount = approvals.filter((item) => item.status === "active").length;
+  const availableSkillCount = skills.filter((item) => item.status === "available").length;
   const activeCategory = pageCategory(activePage, homeCategory);
 
   async function refresh() {
     setError(null);
     try {
-      const [healthResult, interfaceResult, pluginResult, toolResult, policyResult, approvalResult, fileResult, auditResult] = await Promise.all([
+      const [
+        healthResult,
+        interfaceResult,
+        pluginResult,
+        toolResult,
+        policyResult,
+        approvalResult,
+        skillResult,
+        mcpInfoResult,
+        mcpListResult,
+        fileResult,
+        auditResult
+      ] = await Promise.all([
         api.health(),
         api.aiInterfaces(),
         api.plugins(),
         api.tools(""),
         api.securityPolicy(),
         api.approvals(),
+        api.skills(),
+        api.mcpInfo(),
+        api.mcpListTools(),
         api.files(),
         api.auditCalls()
       ]);
@@ -643,6 +694,14 @@ export function App() {
       setApiTools(toolResult.tools);
       setSecurityPolicy(policyResult);
       setApprovals(approvalResult.approvals);
+      setSkills(skillResult.skills);
+      setMcpInfo(mcpInfoResult);
+      setMcpTools(mcpListResult.tools);
+      if (mcpListResult.tools.length > 0 && !mcpListResult.tools.some((tool) => tool.name === selectedMcpTool)) {
+        const firstTool = mcpListResult.tools[0];
+        setSelectedMcpTool(firstTool.name);
+        setMcpArguments(mcpExampleForTool(firstTool.name));
+      }
       setToolSecurityByName(securityMap);
       setFiles(fileResult.files);
       setAuditCalls(auditResult.calls);
@@ -862,6 +921,32 @@ export function App() {
     }
   }
 
+  function selectMcpTool(name: string) {
+    setSelectedMcpTool(name);
+    setMcpArguments(mcpExampleForTool(name));
+    setMcpResult(null);
+  }
+
+  async function runMcpTool() {
+    setIsMcpRunning(true);
+    setError(null);
+    try {
+      const parsed = JSON.parse(mcpArguments) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("MCP 参数必须是 JSON 对象");
+      }
+
+      const result = await api.mcpCallTool(selectedMcpTool, parsed as Record<string, unknown>);
+      setMcpResult(result);
+      const auditResult = await api.auditCalls();
+      setAuditCalls(auditResult.calls);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "MCP 工具调用失败");
+    } finally {
+      setIsMcpRunning(false);
+    }
+  }
+
   function selectRegex(recipe: RegexRecipe) {
     setSelectedRegexId(recipe.id);
     setRegexPattern(recipe.pattern);
@@ -966,6 +1051,8 @@ export function App() {
               <div className="stats-strip">
                 <span>插件 {plugins.length}</span>
                 <span>接口工具 {apiTools.length}</span>
+                <span>Skills {availableSkillCount}</span>
+                <span>MCP 工具 {mcpTools.length}</span>
                 <span>有效审批 {activeApprovalCount}</span>
                 <span>调用 {totalAuditCount}</span>
                 <span className={health === "ok" ? "ok" : health === "error" ? "error" : ""}>
@@ -1463,6 +1550,159 @@ export function App() {
                   <p>导出 MCP 服务、技能包或接口文档，让更多客户端接入。</p>
                 </div>
               </section>
+            </section>
+          ) : null}
+
+          {activePage === "skills-mcp" ? (
+            <section className="tool-page skills-mcp-page">
+              <div className="page-title">
+                <div>
+                  <p className="eyebrow">智能应用</p>
+                  <h1>Skills / MCP</h1>
+                  <p>查看可按需加载的 Skill 工作流说明，并通过 MCP JSON-RPC 发现和调用工具。</p>
+                </div>
+                <Sparkles size={26} />
+              </div>
+
+              <div className="access-summary">
+                <article>
+                  <strong>{skills.length}</strong>
+                  <span>Skill 工作流</span>
+                </article>
+                <article>
+                  <strong>{mcpTools.length}</strong>
+                  <span>MCP 暴露工具</span>
+                </article>
+                <article>
+                  <strong>{mcpInfo?.protocol_version ?? "2025-06-18"}</strong>
+                  <span>MCP 协议版本</span>
+                </article>
+              </div>
+
+              <div className="skills-mcp-layout">
+                <section className="security-panel">
+                  <div className="panel-heading">
+                    <h2>Skill 列表</h2>
+                    <span>工作流说明，不是工具本体</span>
+                  </div>
+                  <div className="skill-grid">
+                    {skills.map((skill) => (
+                      <article className="skill-card" key={skill.id}>
+                        <header>
+                          <div>
+                            <strong>{skill.title}</strong>
+                            <small>{skill.category} · 约 {skill.estimated_context_tokens} tokens</small>
+                          </div>
+                          <span className={`status-badge ${skill.status}`}>{localizeSkillStatus(skill.status)}</span>
+                        </header>
+                        <p>{skill.description}</p>
+                        <div className="permission-chips">
+                          {skill.tags.map((tag) => (
+                            <span key={tag}>{tag}</span>
+                          ))}
+                        </div>
+                        <details>
+                          <summary>查看工具与接口</summary>
+                          <div className="skill-detail-list">
+                            <span>工具：{skill.tool_names.length > 0 ? skill.tool_names.join("、") : "使用文件/API 接口"}</span>
+                            <span>接口：{skill.interface_ids.length > 0 ? skill.interface_ids.join("、") : "后续插件接入"}</span>
+                          </div>
+                        </details>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="security-panel mcp-info-panel">
+                  <div className="panel-heading">
+                    <h2>MCP 接入信息</h2>
+                    <span>{mcpInfo?.transport ?? "streamable_http_json_rpc"}</span>
+                  </div>
+                  <div className="mcp-info-grid">
+                    <article>
+                      <strong>Endpoint</strong>
+                      <code>{mcpInfo?.endpoint ?? "/mcp"}</code>
+                    </article>
+                    <article>
+                      <strong>Methods</strong>
+                      <code>{mcpInfo?.methods.join(" / ") ?? "initialize / tools/list / tools/call"}</code>
+                    </article>
+                    <article>
+                      <strong>Capabilities</strong>
+                      <code>tools={mcpInfo?.capabilities.tools ? "true" : "false"}</code>
+                    </article>
+                  </div>
+                  <div className="mcp-note">
+                    <ShieldCheck size={18} />
+                    <span>中高风险工具仍复用权限审批；MCP 调用高风险工具时，把审批令牌放到 params._meta.approval_token。</span>
+                  </div>
+                </section>
+
+                <section className="security-panel">
+                  <div className="panel-heading">
+                    <h2>MCP 工具调用</h2>
+                    <span>使用 tools/call 走同一套运行时和审计</span>
+                  </div>
+                  <div className="mcp-console">
+                    <aside className="mcp-tool-list">
+                      {mcpTools.map((tool) => (
+                        <button
+                          type="button"
+                          key={tool.name}
+                          className={tool.name === selectedMcpTool ? "active" : ""}
+                          onClick={() => selectMcpTool(tool.name)}
+                        >
+                          <strong>{tool.name}</strong>
+                          <span>{tool.title ?? tool.name}</span>
+                        </button>
+                      ))}
+                    </aside>
+
+                    <div className="mcp-runner">
+                      <label>
+                        <span>tools/call 参数 arguments</span>
+                        <textarea value={mcpArguments} onChange={(event) => setMcpArguments(event.target.value)} />
+                      </label>
+                      <button type="button" className="primary-action" onClick={runMcpTool} disabled={isMcpRunning || !selectedMcpTool}>
+                        <Play size={18} />
+                        {isMcpRunning ? "调用中..." : "通过 MCP 调用"}
+                      </button>
+                    </div>
+
+                    <div className="result-panel mcp-result-panel">
+                      <div className="result-header">
+                        <div>
+                          <span className="result-kicker">MCP 返回</span>
+                          <h2>{mcpResult ? (mcpResult.isError ? "调用失败" : "调用成功") : "等待调用"}</h2>
+                        </div>
+                      </div>
+                      {mcpResult ? (
+                        <>
+                          <div className={`validation-result ${mcpResult.isError ? "invalid" : "valid"}`}>
+                            <CheckCircle2 size={26} />
+                            <div>
+                              <strong>{mcpResult.isError ? "MCP 工具返回错误" : "MCP 工具已返回结果"}</strong>
+                              <span>{mcpResult.content.map((item) => item.text).join("\n")}</span>
+                            </div>
+                          </div>
+                          {mcpResult.structuredContent ? (
+                            <details className="raw-result">
+                              <summary>structuredContent</summary>
+                              <pre>{pretty(mcpResult.structuredContent)}</pre>
+                            </details>
+                          ) : null}
+                        </>
+                      ) : (
+                        <div className="result-empty">
+                          <Bot size={28} />
+                          <strong>还没有 MCP 调用结果</strong>
+                          <span>选择工具、编辑 arguments，然后点击“通过 MCP 调用”。</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              </div>
             </section>
           ) : null}
 

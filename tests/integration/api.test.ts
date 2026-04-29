@@ -174,9 +174,54 @@ describe("api service", () => {
           expect.objectContaining({
             id: "toolbox.create_approval",
             status: "available"
+          }),
+          expect.objectContaining({
+            id: "toolbox.list_skills",
+            status: "available"
+          }),
+          expect.objectContaining({
+            id: "toolbox.mcp_tools_list",
+            status: "available"
           })
         ])
       );
+    });
+  });
+
+  it("lists and returns skill details", async () => {
+    await withApp(async (app) => {
+      const listResponse = await app.inject({
+        method: "GET",
+        url: "/v1/skills"
+      });
+      const listBody = listResponse.json();
+
+      expect(listResponse.statusCode).toBe(200);
+      expect(listBody.ok).toBe(true);
+      expect(listBody.data.skills).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: "json-data-cleanup",
+            title: "JSON 数据清洗",
+            status: "available"
+          }),
+          expect.objectContaining({
+            id: "mcp-tool-bridge",
+            status: "available"
+          })
+        ])
+      );
+
+      const detailResponse = await app.inject({
+        method: "GET",
+        url: "/v1/skills/json-data-cleanup"
+      });
+      const detailBody = detailResponse.json();
+
+      expect(detailResponse.statusCode).toBe(200);
+      expect(detailBody.ok).toBe(true);
+      expect(detailBody.data.workflow_steps).toContain("调用 json.validate 判断输入是否可解析。");
+      expect(detailBody.data.tool_names).toEqual(["json.validate", "json.format"]);
     });
   });
 
@@ -238,6 +283,92 @@ describe("api service", () => {
       expect(body.data.plugin_id).toBe("json.basic");
       expect(body.data.result.data.formatted).toBe("{\n  \"name\": \"aitbx\"\n}");
       expect(body.data.usage.duration_ms).toEqual(expect.any(Number));
+    });
+  });
+
+  it("exposes MCP initialize, tools/list, and tools/call", async () => {
+    await withApp(async (app) => {
+      const initializeResponse = await app.inject({
+        method: "POST",
+        url: "/mcp",
+        payload: {
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-06-18",
+            capabilities: {},
+            clientInfo: {
+              name: "vitest",
+              version: "0.1.0"
+            }
+          }
+        }
+      });
+      const initializeBody = initializeResponse.json();
+
+      expect(initializeResponse.statusCode).toBe(200);
+      expect(initializeBody).toMatchObject({
+        jsonrpc: "2.0",
+        id: 1,
+        result: {
+          protocolVersion: "2025-06-18",
+          capabilities: {
+            tools: {
+              listChanged: false
+            }
+          }
+        }
+      });
+
+      const listResponse = await app.inject({
+        method: "POST",
+        url: "/mcp",
+        payload: {
+          jsonrpc: "2.0",
+          id: 2,
+          method: "tools/list"
+        }
+      });
+      const listBody = listResponse.json();
+
+      expect(listResponse.statusCode).toBe(200);
+      expect(listBody.result.tools).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "json_format",
+            inputSchema: expect.objectContaining({
+              type: "object"
+            })
+          }),
+          expect.objectContaining({
+            name: "json_validate"
+          })
+        ])
+      );
+
+      const callResponse = await app.inject({
+        method: "POST",
+        url: "/mcp",
+        payload: {
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/call",
+          params: {
+            name: "json_format",
+            arguments: {
+              text: "{\"name\":\"aitbx\"}",
+              indent: 2
+            }
+          }
+        }
+      });
+      const callBody = callResponse.json();
+
+      expect(callResponse.statusCode).toBe(200);
+      expect(callBody.result.isError).toBeUndefined();
+      expect(callBody.result.structuredContent.formatted).toBe("{\n  \"name\": \"aitbx\"\n}");
+      expect(callBody.result.content[0].text).toContain("JSON formatted successfully.");
     });
   });
 

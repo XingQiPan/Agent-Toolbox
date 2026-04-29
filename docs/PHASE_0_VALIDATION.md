@@ -258,8 +258,9 @@ Phase 0 is valid when:
 - CLI can list the `json.basic` plugin, search tools, inspect tool metadata, and
   run both JSON tools.
 - API can serve health, plugin list, tool search, tool detail, tool security,
-  approval, tool run, file, and audit log endpoints using the unified
-  `{ ok, data, error }` envelope.
+  approval, tool run, file, skill, MCP info, and audit log endpoints using the
+  unified `{ ok, data, error }` envelope where applicable.
+- `POST /mcp` supports JSON-RPC `initialize`, `tools/list`, and `tools/call`.
 - `json.format` and `json.validate` are low-risk built-in tools with no file,
   network, secret, or shell permissions.
 - Runtime tool calls return structured results with `summary`, `artifacts`,
@@ -298,9 +299,15 @@ Expected behavior:
   docs, Web, scripts, or agents.
 - The permissions and approvals page shows risk levels, permission types, tool
   security profiles, active approval count, and approval history.
+- The Skills / MCP page shows built-in Skill workflows, MCP endpoint metadata,
+  MCP tool names, argument editing, and a user-facing MCP call result card.
 - The API supports `GET /v1/security/policy`,
   `GET /v1/tools/{tool_name}/security`, `GET /v1/approvals`, and
   `POST /v1/approvals`.
+- The API supports `GET /v1/skills`, `GET /v1/skills/{skill_id}`, `GET /mcp`,
+  and `POST /mcp`.
+- MCP `tools/list` maps internal names like `json.format` to MCP names like
+  `json_format`; MCP `tools/call` returns `content` and `structuredContent`.
 - High-risk or sensitive-permission tools return `APPROVAL_REQUIRED` without a
   valid one-time approval token. Low-risk JSON tools still run directly.
 - The file artifacts page uploads small files, shows generated file IDs,

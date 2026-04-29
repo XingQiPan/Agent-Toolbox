@@ -1430,6 +1430,158 @@ p {
   font-size: 12px;
 }
 
+.skills-mcp-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.skill-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.skill-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.skill-card header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.skill-card strong,
+.skill-card small {
+  display: block;
+}
+
+.skill-card small,
+.skill-card p,
+.skill-detail-list span,
+.mcp-note span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.skill-card details {
+  border-radius: 8px;
+  background: #f7f8fa;
+}
+
+.skill-card summary {
+  padding: 9px 10px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.skill-detail-list {
+  display: grid;
+  gap: 5px;
+  padding: 0 10px 10px;
+}
+
+.mcp-info-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1.6fr 0.8fr;
+  gap: 12px;
+}
+
+.mcp-info-grid article {
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.mcp-info-grid code {
+  overflow-wrap: anywhere;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.mcp-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.mcp-note svg {
+  color: var(--green);
+}
+
+.mcp-console {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.mcp-tool-list,
+.mcp-runner {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 12px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.mcp-tool-list button {
+  display: grid;
+  gap: 3px;
+  padding: 11px;
+  border: 0;
+  border-radius: 8px;
+  background: #f5f6f8;
+  color: var(--ink);
+  text-align: left;
+}
+
+.mcp-tool-list button.active,
+.mcp-tool-list button:hover {
+  background: #eceff3;
+}
+
+.mcp-tool-list span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mcp-runner label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mcp-runner textarea {
+  width: 100%;
+  min-height: 230px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: 0;
+  resize: vertical;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+}
+
+.mcp-result-panel {
+  min-height: 300px;
+}
+
 .audit-list {
   display: grid;
   gap: 10px;
@@ -1552,7 +1704,10 @@ p {
   .interface-grid,
   .risk-grid,
   .security-tool-list,
-  .permission-type-grid {
+  .permission-type-grid,
+  .skill-grid,
+  .mcp-info-grid,
+  .mcp-console {
     grid-template-columns: 1fr;
   }
 }

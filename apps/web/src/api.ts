@@ -93,6 +93,61 @@ export interface ApprovalSummary {
   used_at?: string;
 }
 
+export interface SkillSummary {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  status: "available" | "planned";
+  tags: string[];
+  tool_names: string[];
+  interface_ids: string[];
+  estimated_context_tokens: number;
+}
+
+export interface SkillDetail extends SkillSummary {
+  when_to_use: string[];
+  workflow_steps: string[];
+  output_contract: string[];
+}
+
+export interface McpEndpointInfo {
+  endpoint: string;
+  transport: string;
+  protocol_version: string;
+  capabilities: {
+    tools: boolean;
+    resources: boolean;
+    prompts: boolean;
+  };
+  methods: string[];
+  tools: Array<{
+    name: string;
+    internal_tool_name: string;
+    risk_level: "low" | "medium" | "high";
+  }>;
+  notes: string[];
+}
+
+export interface McpTool {
+  name: string;
+  title?: string;
+  description?: string;
+  inputSchema: JsonSchema;
+  outputSchema?: JsonSchema;
+  _meta?: Record<string, unknown>;
+}
+
+export interface McpToolCallResult {
+  content: Array<{
+    type: "text";
+    text: string;
+  }>;
+  structuredContent?: Record<string, unknown>;
+  isError?: boolean;
+  _meta?: Record<string, unknown>;
+}
+
 export interface ToolRunResponse {
   tool_name: string;
   plugin_id: string;
@@ -192,6 +247,40 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body.data as T;
 }
 
+async function mcpRequest<T>(method: string, params?: Record<string, unknown>): Promise<T> {
+  const id = Date.now();
+  const response = await fetch("/api/mcp", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Mcp-Method": method,
+      ...(params && typeof params.name === "string" ? { "Mcp-Name": params.name } : {})
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id,
+      method,
+      ...(params ? { params } : {})
+    })
+  });
+  const body = (await response.json()) as {
+    jsonrpc: "2.0";
+    id: number;
+    result?: T;
+    error?: {
+      code: number;
+      message: string;
+      data?: unknown;
+    };
+  };
+
+  if (!response.ok || body.error) {
+    throw new Error(body.error?.message ?? `MCP 请求失败：${response.status}`);
+  }
+
+  return body.result as T;
+}
+
 export const api = {
   health: () => request<{ status: string }>("/health"),
   aiInterfaces: () => request<AiInterfacesResponse>("/v1/ai/interfaces"),
@@ -208,6 +297,15 @@ export const api = {
   plugins: () => request<{ plugins: PluginSummary[] }>("/v1/plugins"),
   securityPolicy: () => request<SecurityPolicy>("/v1/security/policy"),
   approvals: () => request<{ approvals: ApprovalSummary[] }>("/v1/approvals"),
+  skills: () => request<{ skills: SkillSummary[]; totals: { available: number; planned: number }; guidance: string }>("/v1/skills"),
+  skill: (id: string) => request<SkillDetail>(`/v1/skills/${encodeURIComponent(id)}`),
+  mcpInfo: () => request<McpEndpointInfo>("/mcp"),
+  mcpListTools: () => mcpRequest<{ tools: McpTool[] }>("tools/list"),
+  mcpCallTool: (name: string, args: Record<string, unknown>) =>
+    mcpRequest<McpToolCallResult>("tools/call", {
+      name,
+      arguments: args
+    }),
   createApproval: (toolName: string, reason?: string) =>
     request<ApprovalCreateResponse>("/v1/approvals", {
       method: "POST",

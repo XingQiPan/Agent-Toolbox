@@ -8,9 +8,9 @@
 
 - 建立 TypeScript monorepo 工程骨架。
 - 拆分 API、CLI、Core、Plugin SDK 的基本包边界。
-- 定义插件 manifest、工具注册、工具搜索、工具执行、权限审批、文件产物和审计日志的最小实现。
+- 定义插件 manifest、工具注册、工具搜索、工具执行、权限审批、文件产物、Skill 列表、MCP 适配和审计日志的最小实现。
 - 提供 `json-basic` 示例插件，跑通 `json.format` 和 `json.validate`。
-- 提供中文 Web 控制台，支持工具箱首页、图片压缩、正则大全、数据工具、文件产物、权限审批、智能体接入和审计查看。
+- 提供中文 Web 控制台，支持工具箱首页、图片压缩、正则大全、数据工具、文件产物、权限审批、Skills/MCP、智能体接入和审计查看。
 - 建立多 Agent worktree 开发规则与任务分工方式。
 
 验收命令：
@@ -42,6 +42,10 @@ pnpm --filter @agent-toolbox/api dev
 - `GET /v1/security/policy`
 - `GET /v1/approvals`
 - `POST /v1/approvals`
+- `GET /v1/skills`
+- `GET /v1/skills/:id`
+- `GET /mcp`
+- `POST /mcp`
 - `POST /v1/tools/:name/run`
 - `GET /v1/plugins`
 - `aitbx plugin install`
@@ -96,6 +100,11 @@ pnpm --filter @agent-toolbox/api dev
 - `toolbox.get_tool_security`
 - `toolbox.create_approval`
 - `toolbox.run_tool`
+- `toolbox.list_skills`
+- `toolbox.get_skill`
+- MCP `initialize`
+- MCP `tools/list`
+- MCP `tools/call`
 - Provider Adapter 基础接口。
 
 ## Phase 5：MCP 与 Skill 适配

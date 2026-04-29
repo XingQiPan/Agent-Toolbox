@@ -111,6 +111,43 @@ interface ApprovalSummary {
   used_at?: string;
 }
 
+type SkillStatus = "available" | "planned";
+type JsonRpcId = string | number | null;
+
+interface SkillDefinition {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  status: SkillStatus;
+  tags: string[];
+  tool_names: string[];
+  interface_ids: string[];
+  when_to_use: string[];
+  workflow_steps: string[];
+  output_contract: string[];
+  estimated_context_tokens: number;
+}
+
+interface McpJsonRpcRequest {
+  jsonrpc?: string;
+  id?: JsonRpcId;
+  method?: string;
+  params?: unknown;
+}
+
+interface McpContentBlock {
+  type: "text";
+  text: string;
+}
+
+interface McpToolResult {
+  content: McpContentBlock[];
+  structuredContent?: Record<string, unknown>;
+  isError?: boolean;
+  _meta?: Record<string, unknown>;
+}
+
 export interface BuildAppOptions {
   logger?: FastifyServerOptions["logger"];
   runtime?: ToolboxRuntime;
@@ -118,6 +155,7 @@ export interface BuildAppOptions {
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const APPROVAL_TTL_SECONDS = 15 * 60;
+const MCP_PROTOCOL_VERSION = "2025-06-18";
 const DEFAULT_PERMISSIONS: ToolPermissions = {
   filesystem: [],
   network: false,
@@ -126,6 +164,97 @@ const DEFAULT_PERMISSIONS: ToolPermissions = {
   max_runtime_seconds: 5,
   max_memory_mb: 128
 };
+
+const SKILL_CATALOG: SkillDefinition[] = [
+  {
+    id: "json-data-cleanup",
+    title: "JSON 数据清洗",
+    description: "当用户粘贴接口返回、配置片段或日志中的 JSON 时，先校验再格式化，输出可读结果。",
+    category: "数据处理",
+    status: "available",
+    tags: ["JSON", "校验", "格式化"],
+    tool_names: ["json.validate", "json.format"],
+    interface_ids: ["toolbox.search_tools", "toolbox.get_tool_schema", "toolbox.run_tool"],
+    when_to_use: [
+      "用户要求检查 JSON 是否合法",
+      "用户希望把压缩 JSON 格式化成易读文本",
+      "智能体需要在执行后把结构化结果整理给人看"
+    ],
+    workflow_steps: [
+      "调用 json.validate 判断输入是否可解析。",
+      "如果有效，调用 json.format 并选择合适缩进。",
+      "输出面向用户的可读文本，原始结构化结果保留给调试或后续工具。"
+    ],
+    output_contract: ["是否有效", "格式化后的文本", "错误信息和错误位置"],
+    estimated_context_tokens: 520
+  },
+  {
+    id: "file-artifact-handoff",
+    title: "文件产物交接",
+    description: "把用户文件转成 file_id，让后续工具、智能体和用户下载流程都只引用文件标识。",
+    category: "文件产物",
+    status: "available",
+    tags: ["file_id", "上传", "下载", "artifact"],
+    tool_names: [],
+    interface_ids: ["toolbox.upload_file", "toolbox.list_files", "toolbox.get_file", "toolbox.download_file"],
+    when_to_use: [
+      "用户上传文件后需要生成可引用标识",
+      "后续工具不应把大文件内容塞进模型上下文",
+      "需要把工具产物交给用户下载"
+    ],
+    workflow_steps: [
+      "通过 POST /v1/files 上传文件并获取 file_id。",
+      "后续工具输入只传 file_id。",
+      "完成后通过文件详情或下载接口把产物展示给用户。"
+    ],
+    output_contract: ["file_id", "文件名", "MIME 类型", "大小", "下载链接"],
+    estimated_context_tokens: 460
+  },
+  {
+    id: "mcp-tool-bridge",
+    title: "MCP 工具桥接",
+    description: "把内部工具映射为 MCP tools/list 和 tools/call，供支持 MCP 的客户端发现和调用。",
+    category: "外部协议",
+    status: "available",
+    tags: ["MCP", "tools/list", "tools/call", "JSON-RPC"],
+    tool_names: ["json.format", "json.validate"],
+    interface_ids: ["toolbox.mcp_initialize", "toolbox.mcp_tools_list", "toolbox.mcp_tools_call"],
+    when_to_use: [
+      "用户要把 Agent Toolbox 接到 MCP 客户端",
+      "智能体需要通过标准协议发现工具",
+      "团队希望复用已有工具运行时和审计，而不是重新写 MCP 工具"
+    ],
+    workflow_steps: [
+      "客户端向 /mcp 发送 initialize 获取工具能力。",
+      "客户端调用 tools/list 获取 MCP 工具名和输入结构。",
+      "客户端调用 tools/call，并由内部运行时执行真实工具。"
+    ],
+    output_contract: ["MCP 工具名", "输入 JSON Schema", "文本结果", "structuredContent"],
+    estimated_context_tokens: 620
+  },
+  {
+    id: "pdf-report-maker",
+    title: "PDF 报告生成",
+    description: "从 PDF、表格或网页提取信息，分析后生成 Word/PDF 报告。当前作为后续插件工作流模板展示。",
+    category: "文档工作流",
+    status: "planned",
+    tags: ["PDF", "报告", "图表", "Skill Pack"],
+    tool_names: ["pdf.extract_text", "table.extract", "chart.render", "docx.compose"],
+    interface_ids: [],
+    when_to_use: [
+      "用户要求从 PDF 生成总结报告",
+      "用户上传多份资料并希望汇总成文档",
+      "需要把分析结果导出为 Word 或 PDF"
+    ],
+    workflow_steps: [
+      "提取 PDF 正文和表格。",
+      "对结构化数据做分析和图表渲染。",
+      "生成 Word 文档，必要时转换为 PDF。"
+    ],
+    output_contract: ["报告 file_id", "关键发现摘要", "图表产物", "可下载文档"],
+    estimated_context_tokens: 780
+  }
+];
 
 export function createRuntime(): ToolboxRuntime {
   const runtime = new ToolboxRuntime();
@@ -399,6 +528,215 @@ function buildSecurityPolicy() {
   };
 }
 
+function toSkillSummary(skill: SkillDefinition) {
+  return {
+    id: skill.id,
+    title: skill.title,
+    description: skill.description,
+    category: skill.category,
+    status: skill.status,
+    tags: skill.tags,
+    tool_names: skill.tool_names,
+    interface_ids: skill.interface_ids,
+    estimated_context_tokens: skill.estimated_context_tokens
+  };
+}
+
+function toMcpToolName(toolName: string): string {
+  return toolName.replace(/[^A-Za-z0-9_-]/g, "_");
+}
+
+function findToolByMcpName(runtime: ToolboxRuntime, mcpName: string): RegisteredTool | undefined {
+  return runtime.searchTools("").find((tool) => toMcpToolName(tool.name) === mcpName || tool.name === mcpName);
+}
+
+function toMcpTool(runtime: ToolboxRuntime, tool: RegisteredTool) {
+  const security = describeToolSecurity(runtime, tool);
+
+  return {
+    name: toMcpToolName(tool.name),
+    title: tool.title,
+    description: `${tool.description}\n\n内部工具：${tool.name}\n风险等级：${formatRiskLevel(tool.risk_level)}\n审批要求：${
+      security.approval_required ? security.approval_reason : "无需审批"
+    }`,
+    inputSchema: tool.input_schema,
+    ...(tool.output_schema ? { outputSchema: tool.output_schema } : {}),
+    _meta: {
+      "agent-toolbox/internalToolName": tool.name,
+      "agent-toolbox/pluginId": tool.plugin_id,
+      "agent-toolbox/riskLevel": tool.risk_level,
+      "agent-toolbox/approvalRequired": security.approval_required
+    }
+  };
+}
+
+function mcpResult(id: JsonRpcId | undefined, result: unknown) {
+  return {
+    jsonrpc: "2.0",
+    id: id ?? null,
+    result
+  };
+}
+
+function mcpError(id: JsonRpcId | undefined, code: number, message: string, data?: unknown) {
+  return {
+    jsonrpc: "2.0",
+    id: id ?? null,
+    error: data === undefined ? { code, message } : { code, message, data }
+  };
+}
+
+function toMcpToolResult(text: string, structuredContent?: Record<string, unknown>, isError = false, meta?: Record<string, unknown>): McpToolResult {
+  return {
+    content: [
+      {
+        type: "text",
+        text: structuredContent ? `${text}\n\n${JSON.stringify(structuredContent, null, 2)}` : text
+      }
+    ],
+    ...(structuredContent ? { structuredContent } : {}),
+    ...(isError ? { isError: true } : {}),
+    ...(meta ? { _meta: meta } : {})
+  };
+}
+
+function isAllowedMcpOrigin(origin: string | undefined): boolean {
+  if (!origin) {
+    return true;
+  }
+
+  try {
+    const url = new URL(origin);
+    return ["127.0.0.1", "localhost", "::1"].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function getApprovalTokenFromMcp(params: Record<string, unknown>, input: Record<string, unknown>): string | undefined {
+  const meta = isRecord(params._meta) ? params._meta : undefined;
+  const metaToken = meta?.approval_token;
+  if (typeof metaToken === "string") {
+    return metaToken;
+  }
+
+  const inputToken = input.approval_token;
+  return typeof inputToken === "string" ? inputToken : undefined;
+}
+
+async function handleMcpMessage(
+  message: unknown,
+  runtime: ToolboxRuntime,
+  approvalStore: InMemoryApprovalStore
+): Promise<Record<string, unknown> | undefined> {
+  if (!isRecord(message)) {
+    return mcpError(null, -32600, "Invalid JSON-RPC request.");
+  }
+
+  const request = message as McpJsonRpcRequest;
+  const id = request.id;
+
+  if (request.jsonrpc !== "2.0" || typeof request.method !== "string") {
+    return mcpError(id, -32600, "Invalid JSON-RPC request.");
+  }
+
+  if (!("id" in request) && request.method.startsWith("notifications/")) {
+    return undefined;
+  }
+
+  switch (request.method) {
+    case "initialize": {
+      const params = isRecord(request.params) ? request.params : {};
+      const clientInfo = isRecord(params.clientInfo) ? params.clientInfo : undefined;
+
+      return mcpResult(id, {
+        protocolVersion: MCP_PROTOCOL_VERSION,
+        capabilities: {
+          tools: {
+            listChanged: false
+          }
+        },
+        serverInfo: {
+          name: "agent-toolbox",
+          title: "Agent Toolbox",
+          version: "0.1.0"
+        },
+        instructions: `Agent Toolbox MCP 适配层。当前客户端：${String(clientInfo?.name ?? "unknown")}。高风险工具需要先通过 REST 审批接口获取令牌，并放入 params._meta.approval_token。`
+      });
+    }
+
+    case "tools/list": {
+      return mcpResult(id, {
+        tools: runtime.searchTools("").map((tool) => toMcpTool(runtime, tool))
+      });
+    }
+
+    case "tools/call": {
+      if (!isRecord(request.params) || typeof request.params.name !== "string") {
+        return mcpError(id, -32602, "tools/call params.name must be a string.");
+      }
+
+      const tool = findToolByMcpName(runtime, request.params.name);
+      if (!tool) {
+        return mcpError(id, -32602, `Unknown tool: ${request.params.name}`);
+      }
+
+      const rawArguments = isRecord(request.params.arguments) ? request.params.arguments : {};
+      const input = { ...rawArguments };
+      delete input.approval_token;
+
+      const issues = validateJsonSchema(input, tool.input_schema, "arguments");
+      if (issues.length > 0) {
+        return mcpResult(
+          id,
+          toMcpToolResult("工具输入校验失败。", {
+            code: "INVALID_INPUT",
+            issues
+          }, true)
+        );
+      }
+
+      const security = describeToolSecurity(runtime, tool);
+      const approvalToken = getApprovalTokenFromMcp(request.params, rawArguments);
+      if (security.approval_required && !approvalStore.consume(tool.name, approvalToken)) {
+        return mcpResult(
+          id,
+          toMcpToolResult("该工具需要有效的一次性审批令牌后才能执行。", {
+            code: "APPROVAL_REQUIRED",
+            security
+          }, true)
+        );
+      }
+
+      const result = await runtime.runTool(tool.name, input);
+
+      if (!result.ok) {
+        return mcpResult(
+          id,
+          toMcpToolResult(result.error.message, {
+            code: result.error.code,
+            retryable: result.error.retryable,
+            usage: result.usage
+          }, true)
+        );
+      }
+
+      return mcpResult(
+        id,
+        toMcpToolResult(result.result.summary, result.result.data, false, {
+          "agent-toolbox/internalToolName": tool.name,
+          "agent-toolbox/pluginId": tool.plugin_id,
+          "agent-toolbox/artifacts": result.result.artifacts,
+          "agent-toolbox/usage": result.usage
+        })
+      );
+    }
+
+    default:
+      return mcpError(id, -32601, `Method not found: ${request.method}`);
+  }
+}
+
 function buildAiInterfaces(): AiInterface[] {
   return [
     {
@@ -604,12 +942,88 @@ function buildAiInterfaces(): AiInterface[] {
       ai_tool_name: "toolbox.download_file"
     },
     {
-      id: "toolbox.mcp_tools",
-      title: "MCP 工具列表与调用",
-      description: "把工具箱作为 MCP 服务暴露给支持 MCP 的客户端。",
+      id: "toolbox.list_skills",
+      title: "查看 Skill 列表",
+      description: "列出当前内置工作流说明，帮助智能体按任务选择工具组合，而不是盲目调用单个工具。",
+      method: "GET",
+      path: "/v1/skills",
+      status: "available",
+      ai_tool_name: "toolbox.list_skills",
+      example_response: {
+        skills: [
+          {
+            id: "json-data-cleanup",
+            title: "JSON 数据清洗",
+            status: "available"
+          }
+        ]
+      }
+    },
+    {
+      id: "toolbox.get_skill",
+      title: "获取 Skill 详情",
+      description: "按需加载单个 Skill 的使用场景、流程步骤和输出要求，减少上下文成本。",
+      method: "GET",
+      path: "/v1/skills/{skill_id}",
+      status: "available",
+      ai_tool_name: "toolbox.get_skill",
+      example_request: {
+        skill_id: "json-data-cleanup"
+      }
+    },
+    {
+      id: "toolbox.mcp_initialize",
+      title: "MCP 初始化",
+      description: "MCP 客户端通过 JSON-RPC initialize 发现服务信息和 tools 能力。",
       method: "POST",
       path: "/mcp",
-      status: "planned"
+      status: "available",
+      example_request: {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: MCP_PROTOCOL_VERSION,
+          capabilities: {},
+          clientInfo: {
+            name: "demo-client",
+            version: "0.1.0"
+          }
+        }
+      }
+    },
+    {
+      id: "toolbox.mcp_tools_list",
+      title: "MCP 工具列表",
+      description: "把内部工具注册表映射为 MCP tools/list，工具名会从 json.format 转为 json_format。",
+      method: "POST",
+      path: "/mcp",
+      status: "available",
+      example_request: {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/list"
+      }
+    },
+    {
+      id: "toolbox.mcp_tools_call",
+      title: "MCP 工具调用",
+      description: "通过 MCP tools/call 调用内部工具，返回 content 和 structuredContent。",
+      method: "POST",
+      path: "/mcp",
+      status: "available",
+      example_request: {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: {
+          name: "json_format",
+          arguments: {
+            text: "{\"name\":\"aitbx\"}",
+            indent: 2
+          }
+        }
+      }
     }
   ];
 }
@@ -853,6 +1267,94 @@ export function buildApp(options: BuildAppOptions = {}) {
       );
     }
   );
+
+  app.get("/v1/skills", async () => {
+    return success({
+      skills: SKILL_CATALOG.map(toSkillSummary),
+      totals: {
+        available: SKILL_CATALOG.filter((skill) => skill.status === "available").length,
+        planned: SKILL_CATALOG.filter((skill) => skill.status === "planned").length
+      },
+      guidance: "Skill 是工作流说明，不是工具本体。智能体应先按任务选择 Skill，再按步骤搜索和调用工具。"
+    });
+  });
+
+  app.get<{ Params: { skill_id: string } }>(
+    "/v1/skills/:skill_id",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["skill_id"],
+          properties: {
+            skill_id: {
+              type: "string",
+              minLength: 1
+            }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const skill = SKILL_CATALOG.find((item) => item.id === request.params.skill_id);
+
+      if (!skill) {
+        return sendFailure(reply, 404, "SKILL_NOT_FOUND", `Skill not found: ${request.params.skill_id}`);
+      }
+
+      return success(skill);
+    }
+  );
+
+  app.get("/mcp", async () => {
+    return success({
+      endpoint: "/mcp",
+      transport: "streamable_http_json_rpc",
+      protocol_version: MCP_PROTOCOL_VERSION,
+      capabilities: {
+        tools: true,
+        resources: false,
+        prompts: false
+      },
+      methods: ["initialize", "tools/list", "tools/call"],
+      tools: runtime.searchTools("").map((tool) => ({
+        name: toMcpToolName(tool.name),
+        internal_tool_name: tool.name,
+        risk_level: tool.risk_level
+      })),
+      notes: [
+        "POST /mcp 使用 JSON-RPC 2.0 请求体。",
+        "高风险工具需要先通过 /v1/approvals 创建审批令牌，并放入 params._meta.approval_token。"
+      ]
+    });
+  });
+
+  app.post<{ Body: unknown }>("/mcp", async (request, reply) => {
+    if (!isAllowedMcpOrigin(request.headers.origin)) {
+      return reply.code(403).send(mcpError(null, -32000, "Origin is not allowed for local MCP access."));
+    }
+
+    reply.header("Mcp-Protocol-Version", MCP_PROTOCOL_VERSION);
+
+    if (Array.isArray(request.body)) {
+      const responses = (await Promise.all(
+        request.body.map((message) => handleMcpMessage(message, runtime, approvalStore))
+      )).filter((item): item is Record<string, unknown> => item !== undefined);
+
+      if (responses.length === 0) {
+        return reply.code(202).send();
+      }
+
+      return responses;
+    }
+
+    const response = await handleMcpMessage(request.body, runtime, approvalStore);
+    if (!response) {
+      return reply.code(202).send();
+    }
+
+    return response;
+  });
 
   app.get("/v1/files", async () => {
     return success({
