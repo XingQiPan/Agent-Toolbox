@@ -45,9 +45,16 @@ import {
   Video
 } from "lucide-react";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { api, type AuditCall, type PluginSummary, type ToolRunResponse, type ToolSummary } from "./api.js";
+import {
+  api,
+  type AiInterface,
+  type AuditCall,
+  type PluginSummary,
+  type ToolRunResponse,
+  type ToolSummary
+} from "./api.js";
 
-type PageId = "home" | "image-compress" | "regex-collection" | "json-tools" | "audit";
+type PageId = "home" | "image-compress" | "regex-collection" | "json-tools" | "ai-access" | "audit";
 type ImageFormat = "image/jpeg" | "image/png" | "image/webp";
 type AppIcon = typeof Home;
 
@@ -98,6 +105,7 @@ const pages: Array<{ id: PageId; label: string }> = [
   { id: "image-compress", label: "图片压缩" },
   { id: "regex-collection", label: "正则大全" },
   { id: "json-tools", label: "数据工具" },
+  { id: "ai-access", label: "智能体接入" },
   { id: "audit", label: "审计" }
 ];
 
@@ -140,6 +148,12 @@ const pinnedTools: HomeTool[] = [
     icon: FileJson2,
     page: "json-tools",
     apiTool: "json.format"
+  },
+  {
+    title: "智能体接入",
+    description: "查看可给智能体接入的接口",
+    icon: Bot,
+    page: "ai-access"
   },
   {
     title: "添加功能",
@@ -194,6 +208,7 @@ const homeSections: HomeSection[] = [
       { title: "数据格式化", description: "格式化结构化文本", icon: FileJson2, page: "json-tools", apiTool: "json.format" },
       { title: "数据验证", description: "验证结构化文本", icon: CheckCircle2, page: "json-tools", apiTool: "json.validate" },
       { title: "调用审计", description: "查看接口和本地工具调用", icon: Database, page: "audit" },
+      { title: "智能体接入", description: "查看工具搜索、详情和执行接口", icon: Bot, page: "ai-access" },
       { title: "工具搜索", description: "按能力搜索工具", icon: Search, planned: true },
       { title: "插件市场", description: "安装和管理插件", icon: Box, planned: true }
     ]
@@ -373,6 +388,14 @@ function localizeCallSource(source: string): string {
   return source;
 }
 
+function localizeInterfaceStatus(status: AiInterface["status"]): string {
+  return status === "available" ? "可用" : "规划中";
+}
+
+function methodLabel(method: AiInterface["method"]): string {
+  return method === "GET" ? "读取" : "提交";
+}
+
 function resultText(result: ToolRunResponse | null, toolName: string): string {
   if (!result) return "";
   const data = result.result.data;
@@ -420,7 +443,7 @@ function pageCategory(page: PageId, homeCategory: string): string {
   if (page === "home") return homeCategory;
   if (page === "image-compress") return "图片应用";
   if (page === "regex-collection") return "文字应用";
-  if (page === "json-tools" || page === "audit") return "智能应用";
+  if (page === "json-tools" || page === "ai-access" || page === "audit") return "智能应用";
   return "首页";
 }
 
@@ -436,6 +459,8 @@ export function App() {
   const [health, setHealth] = useState<"checking" | "ok" | "error">("checking");
   const [plugins, setPlugins] = useState<PluginSummary[]>([]);
   const [apiTools, setApiTools] = useState<ToolSummary[]>([]);
+  const [aiInterfaces, setAiInterfaces] = useState<AiInterface[]>([]);
+  const [recommendedFlow, setRecommendedFlow] = useState<string[]>([]);
   const [auditCalls, setAuditCalls] = useState<AuditCall[]>([]);
   const [localHistory, setLocalHistory] = useState<LocalHistoryItem[]>([]);
   const [search, setSearch] = useState("");
@@ -514,13 +539,16 @@ export function App() {
   async function refresh() {
     setError(null);
     try {
-      const [healthResult, pluginResult, toolResult, auditResult] = await Promise.all([
+      const [healthResult, interfaceResult, pluginResult, toolResult, auditResult] = await Promise.all([
         api.health(),
+        api.aiInterfaces(),
         api.plugins(),
         api.tools(""),
         api.auditCalls()
       ]);
       setHealth(healthResult.status === "ok" ? "ok" : "error");
+      setAiInterfaces(interfaceResult.interfaces);
+      setRecommendedFlow(interfaceResult.recommended_flow);
       setPlugins(pluginResult.plugins);
       setApiTools(toolResult.tools);
       setAuditCalls(auditResult.calls);
@@ -1125,6 +1153,109 @@ export function App() {
                   ) : null}
                 </div>
               </div>
+            </section>
+          ) : null}
+
+          {activePage === "ai-access" ? (
+            <section className="tool-page ai-access-page">
+              <div className="page-title">
+                <div>
+                  <p className="eyebrow">智能应用</p>
+                  <h1>智能体接入</h1>
+                  <p>给智能体、脚本和自动化流程使用的接口清单。推荐先搜索工具，再按需加载参数结构，最后执行工具。</p>
+                </div>
+                <Bot size={26} />
+              </div>
+
+              <div className="access-summary">
+                <article>
+                  <strong>{aiInterfaces.filter((item) => item.status === "available").length}</strong>
+                  <span>当前可用接口</span>
+                </article>
+                <article>
+                  <strong>{aiInterfaces.filter((item) => item.status === "planned").length}</strong>
+                  <span>规划中接口</span>
+                </article>
+                <article>
+                  <strong>{recommendedFlow.length || 3}</strong>
+                  <span>推荐基础工具</span>
+                </article>
+              </div>
+
+              <section className="flow-panel">
+                <h2>推荐接入流程</h2>
+                <div className="flow-steps">
+                  {(recommendedFlow.length > 0
+                    ? recommendedFlow
+                    : ["toolbox.search_tools", "toolbox.get_tool_schema", "toolbox.run_tool"]
+                  ).map((step, index) => (
+                    <div className="flow-step" key={step}>
+                      <span>{index + 1}</span>
+                      <strong>{step}</strong>
+                      <p>
+                        {index === 0
+                          ? "根据任务关键词搜索候选工具。"
+                          : index === 1
+                            ? "只加载少量候选工具的输入输出参数结构。"
+                            : "按参数结构传入结构化参数并执行工具。"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="interface-section">
+                <h2>接口列表</h2>
+                <div className="interface-grid">
+                  {aiInterfaces.map((item) => (
+                    <article className={`interface-card ${item.status}`} key={item.id}>
+                      <div className="interface-card-header">
+                        <span className="method-pill">{methodLabel(item.method)}</span>
+                        <span className={`status-badge ${item.status}`}>{localizeInterfaceStatus(item.status)}</span>
+                      </div>
+                      <h3>{item.title}</h3>
+                      <p>{item.description}</p>
+                      {item.ai_tool_name ? <code>{item.ai_tool_name}</code> : null}
+                      <div className="endpoint-row">
+                        <span>{item.method}</span>
+                        <strong>{item.path}</strong>
+                      </div>
+                      {item.example_request ? (
+                        <details>
+                          <summary>查看请求示例</summary>
+                          <pre>{pretty(item.example_request)}</pre>
+                        </details>
+                      ) : null}
+                      {item.example_response ? (
+                        <details>
+                          <summary>查看返回示例</summary>
+                          <pre>{pretty(item.example_response)}</pre>
+                        </details>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="gap-panel">
+                <h2>对照开发文档，后续还要补什么</h2>
+                <div>
+                  <span>文件与产物服务</span>
+                  <p>上传文件、生成文件标识、下载产物，支撑图片、PDF、压缩包等工具链。</p>
+                </div>
+                <div>
+                  <span>权限与审批</span>
+                  <p>中高风险工具需要权限声明、人工确认、审计和可撤销策略。</p>
+                </div>
+                <div>
+                  <span>模型接入网关</span>
+                  <p>把搜索、参数结构加载、执行三步封装成模型工具调用循环，并统计调用消耗、成本和耗时。</p>
+                </div>
+                <div>
+                  <span>外部协议适配</span>
+                  <p>导出 MCP 服务、技能包或接口文档，让更多客户端接入。</p>
+                </div>
+              </section>
             </section>
           ) : null}
 

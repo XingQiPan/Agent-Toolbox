@@ -922,6 +922,209 @@ p {
   white-space: pre-wrap;
 }
 
+.access-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.access-summary article,
+.flow-panel,
+.interface-section,
+.gap-panel {
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--tile);
+}
+
+.access-summary article {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+}
+
+.access-summary strong {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.access-summary span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.flow-panel,
+.interface-section,
+.gap-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.flow-panel h2,
+.interface-section h2,
+.gap-panel h2 {
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.flow-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.flow-step {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.flow-step > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--black);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.flow-step p,
+.interface-card p,
+.gap-panel p {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.interface-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.interface-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 14px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.interface-card.planned {
+  opacity: 0.74;
+}
+
+.interface-card-header,
+.endpoint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.interface-card h3 {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.interface-card code {
+  justify-self: start;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #111827;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.method-pill,
+.status-badge {
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.method-pill {
+  background: #f3f4f6;
+  color: var(--ink);
+}
+
+.status-badge.available {
+  background: #e9f7ef;
+  color: var(--green);
+}
+
+.status-badge.planned {
+  background: #f3f4f6;
+  color: var(--muted);
+}
+
+.endpoint-row {
+  align-items: start;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f7f8fa;
+}
+
+.endpoint-row span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.endpoint-row strong {
+  overflow-wrap: anywhere;
+  text-align: right;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.interface-card details {
+  border-radius: 8px;
+  background: #f7f8fa;
+}
+
+.interface-card summary {
+  padding: 9px 10px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.interface-card pre {
+  max-height: 180px;
+  margin: 0;
+  padding: 0 10px 10px;
+  overflow: auto;
+  color: #0f172a;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.gap-panel div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.gap-panel span {
+  font-weight: 700;
+}
+
 .audit-list {
   display: grid;
   gap: 10px;
@@ -1038,6 +1241,11 @@ p {
   .json-layout {
     grid-template-columns: 1fr;
   }
+
+  .flow-steps,
+  .interface-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1063,6 +1271,10 @@ p {
     display: grid;
     gap: 4px;
     text-align: center;
+  }
+
+  .access-summary {
+    grid-template-columns: 1fr;
   }
 }
 

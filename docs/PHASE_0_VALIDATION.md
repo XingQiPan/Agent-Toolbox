@@ -289,6 +289,11 @@ Expected behavior:
 - The left sidebar switches home categories such as daily, query, document,
   intelligent, image, audio, video, text, encryption, unit, and life tools.
 - The home page shows a gray-card tool grid with usable tools and planned tools.
+- The intelligent-agent integration page lists the recommended
+  `toolbox.search_tools -> toolbox.get_tool_schema -> toolbox.run_tool` flow,
+  available REST interfaces, examples, and planned file/MCP capabilities.
+- `GET /v1/ai/interfaces` returns the same machine-readable interface list for
+  docs, Web, scripts, or agents.
 - Navigation updates the address bar, so `/image-compress` and
   `/regex-collection` can be refreshed or shared during demos.
 - The image compression page lets a user upload an image, adjust quality,

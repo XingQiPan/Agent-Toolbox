@@ -51,6 +51,44 @@ describe("api service", () => {
     });
   });
 
+  it("lists AI integration interfaces", async () => {
+    await withApp(async (app) => {
+      const response = await app.inject({
+        method: "GET",
+        url: "/v1/ai/interfaces"
+      });
+      const body = response.json();
+
+      expect(response.statusCode).toBe(200);
+      expect(body.ok).toBe(true);
+      expect(body.data.recommended_flow).toEqual([
+        "toolbox.search_tools",
+        "toolbox.get_tool_schema",
+        "toolbox.run_tool"
+      ]);
+      expect(body.data.interfaces).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: "toolbox.search_tools",
+            method: "GET",
+            path: "/v1/tools/search?q={query}",
+            status: "available"
+          }),
+          expect.objectContaining({
+            id: "toolbox.run_tool",
+            method: "POST",
+            path: "/v1/tools/{tool_name}/run",
+            status: "available"
+          }),
+          expect.objectContaining({
+            id: "toolbox.upload_file",
+            status: "planned"
+          })
+        ])
+      );
+    });
+  });
+
   it("searches tools", async () => {
     await withApp(async (app) => {
       const response = await app.inject({

@@ -66,6 +66,27 @@ export interface AuditCall {
   finished_at: string;
 }
 
+export interface AiInterface {
+  id: string;
+  title: string;
+  description: string;
+  method: "GET" | "POST";
+  path: string;
+  status: "available" | "planned";
+  ai_tool_name?: string;
+  example_request?: unknown;
+  example_response?: unknown;
+}
+
+export interface AiInterfacesResponse {
+  recommended_flow: string[];
+  guidance: {
+    principle: string;
+    first_stage_tools: string[];
+  };
+  interfaces: AiInterface[];
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
     ...init,
@@ -86,6 +107,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<{ status: string }>("/health"),
+  aiInterfaces: () => request<AiInterfacesResponse>("/v1/ai/interfaces"),
   plugins: () => request<{ plugins: PluginSummary[] }>("/v1/plugins"),
   tools: (query = "") =>
     request<{ tools: ToolSummary[] }>(`/v1/tools/search?q=${encodeURIComponent(query)}`),
