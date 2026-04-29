@@ -49,12 +49,13 @@ import {
   api,
   type AiInterface,
   type AuditCall,
+  type FileSummary,
   type PluginSummary,
   type ToolRunResponse,
   type ToolSummary
 } from "./api.js";
 
-type PageId = "home" | "image-compress" | "regex-collection" | "json-tools" | "ai-access" | "audit";
+type PageId = "home" | "image-compress" | "regex-collection" | "json-tools" | "files" | "ai-access" | "audit";
 type ImageFormat = "image/jpeg" | "image/png" | "image/webp";
 type AppIcon = typeof Home;
 
@@ -105,6 +106,7 @@ const pages: Array<{ id: PageId; label: string }> = [
   { id: "image-compress", label: "图片压缩" },
   { id: "regex-collection", label: "正则大全" },
   { id: "json-tools", label: "数据工具" },
+  { id: "files", label: "文件产物" },
   { id: "ai-access", label: "智能体接入" },
   { id: "audit", label: "审计" }
 ];
@@ -156,6 +158,12 @@ const pinnedTools: HomeTool[] = [
     page: "ai-access"
   },
   {
+    title: "文件产物",
+    description: "上传文件并生成文件标识",
+    icon: FileText,
+    page: "files"
+  },
+  {
     title: "添加功能",
     description: "后续接入插件市场和收藏",
     icon: Plus,
@@ -196,6 +204,7 @@ const homeSections: HomeSection[] = [
     title: "文档应用",
     tools: [
       { title: "PDF 合并", description: "合并多个 PDF 文件", icon: FileText, planned: true },
+      { title: "文件产物", description: "上传文件、查看元数据并下载", icon: FileText, page: "files" },
       { title: "PDF 压缩", description: "减小 PDF 文件体积", icon: FileText, planned: true },
       { title: "PDF 转图片", description: "把 PDF 页面导出为图片", icon: FileImage, planned: true },
       { title: "Word 转 PDF", description: "转换文档格式", icon: FileText, planned: true },
@@ -209,6 +218,7 @@ const homeSections: HomeSection[] = [
       { title: "数据验证", description: "验证结构化文本", icon: CheckCircle2, page: "json-tools", apiTool: "json.validate" },
       { title: "调用审计", description: "查看接口和本地工具调用", icon: Database, page: "audit" },
       { title: "智能体接入", description: "查看工具搜索、详情和执行接口", icon: Bot, page: "ai-access" },
+      { title: "文件产物", description: "为工具和智能体准备文件标识", icon: FileText, page: "files" },
       { title: "工具搜索", description: "按能力搜索工具", icon: Search, planned: true },
       { title: "插件市场", description: "安装和管理插件", icon: Box, planned: true }
     ]
@@ -388,6 +398,18 @@ function localizeCallSource(source: string): string {
   return source;
 }
 
+function localizeFileKind(kind: FileSummary["kind"]): string {
+  const names: Record<FileSummary["kind"], string> = {
+    input_file: "输入文件",
+    output_file: "输出文件",
+    temp_file: "临时文件",
+    log_file: "日志文件",
+    preview_file: "预览文件",
+    archive_file: "归档文件"
+  };
+  return names[kind];
+}
+
 function localizeInterfaceStatus(status: AiInterface["status"]): string {
   return status === "available" ? "可用" : "规划中";
 }
@@ -443,6 +465,7 @@ function pageCategory(page: PageId, homeCategory: string): string {
   if (page === "home") return homeCategory;
   if (page === "image-compress") return "图片应用";
   if (page === "regex-collection") return "文字应用";
+  if (page === "files") return "文档应用";
   if (page === "json-tools" || page === "ai-access" || page === "audit") return "智能应用";
   return "首页";
 }
@@ -461,6 +484,7 @@ export function App() {
   const [apiTools, setApiTools] = useState<ToolSummary[]>([]);
   const [aiInterfaces, setAiInterfaces] = useState<AiInterface[]>([]);
   const [recommendedFlow, setRecommendedFlow] = useState<string[]>([]);
+  const [files, setFiles] = useState<FileSummary[]>([]);
   const [auditCalls, setAuditCalls] = useState<AuditCall[]>([]);
   const [localHistory, setLocalHistory] = useState<LocalHistoryItem[]>([]);
   const [search, setSearch] = useState("");
@@ -483,6 +507,8 @@ export function App() {
   const [compressedImage, setCompressedImage] = useState<CompressedImage | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
 
   const [selectedRegexId, setSelectedRegexId] = useState(regexRecipes[0].id);
   const [regexSearch, setRegexSearch] = useState("");
@@ -539,11 +565,12 @@ export function App() {
   async function refresh() {
     setError(null);
     try {
-      const [healthResult, interfaceResult, pluginResult, toolResult, auditResult] = await Promise.all([
+      const [healthResult, interfaceResult, pluginResult, toolResult, fileResult, auditResult] = await Promise.all([
         api.health(),
         api.aiInterfaces(),
         api.plugins(),
         api.tools(""),
+        api.files(),
         api.auditCalls()
       ]);
       setHealth(healthResult.status === "ok" ? "ok" : "error");
@@ -551,6 +578,7 @@ export function App() {
       setRecommendedFlow(interfaceResult.recommended_flow);
       setPlugins(pluginResult.plugins);
       setApiTools(toolResult.tools);
+      setFiles(fileResult.files);
       setAuditCalls(auditResult.calls);
     } catch (caught) {
       setHealth("error");
@@ -727,6 +755,25 @@ export function App() {
     await copyText(text);
     setResultCopied(true);
     window.setTimeout(() => setResultCopied(false), 1200);
+  }
+
+  async function handleArtifactFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingFile(true);
+    setError(null);
+    try {
+      const uploaded = await api.uploadFile(file);
+      setFiles((items) => [uploaded, ...items.filter((item) => item.file_id !== uploaded.file_id)]);
+      const interfaceResult = await api.aiInterfaces();
+      setAiInterfaces(interfaceResult.interfaces);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "文件上传失败");
+    } finally {
+      setIsUploadingFile(false);
+      event.target.value = "";
+    }
   }
 
   function selectRegex(recipe: RegexRecipe) {
@@ -1152,6 +1199,76 @@ export function App() {
                     </details>
                   ) : null}
                 </div>
+              </div>
+            </section>
+          ) : null}
+
+          {activePage === "files" ? (
+            <section className="tool-page files-page">
+              <div className="page-title">
+                <div>
+                  <p className="eyebrow">文档应用</p>
+                  <h1>文件产物</h1>
+                  <p>上传小文件并生成文件标识。后续工具和智能体只传文件标识，不把大文件内容塞进上下文。</p>
+                </div>
+                <FileText size={26} />
+              </div>
+
+              <div className="file-workbench">
+                <section className="file-upload-panel">
+                  <button type="button" className="upload-box" onClick={() => fileInputRef.current?.click()} disabled={isUploadingFile}>
+                    <UploadCloud size={32} />
+                    <strong>{isUploadingFile ? "上传中..." : "点击上传文件"}</strong>
+                    <span>Phase 0 使用内存存储，单文件最大 5MB，服务重启后会清空。</span>
+                  </button>
+                  <input ref={fileInputRef} type="file" onChange={handleArtifactFileChange} hidden />
+
+                  <div className="file-hints">
+                    <div>
+                      <strong>给用户</strong>
+                      <span>上传后可在列表里查看大小、类型和下载入口。</span>
+                    </div>
+                    <div>
+                      <strong>给智能体</strong>
+                      <span>接口返回文件标识，后续工具用文件标识引用内容。</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="file-list-panel">
+                  <div className="file-list-header">
+                    <h2>文件列表</h2>
+                    <span>{files.length} 个文件</span>
+                  </div>
+
+                  {files.length > 0 ? (
+                    <div className="file-list">
+                      {files.map((file) => (
+                        <article className="file-row" key={file.file_id}>
+                          <FileText size={22} />
+                          <div>
+                            <strong>{file.name}</strong>
+                            <small>
+                              {localizeFileKind(file.kind)} · {file.mime_type} · {formatBytes(file.size_bytes)} ·{" "}
+                              {new Date(file.created_at).toLocaleString()}
+                            </small>
+                            <code>{file.file_id}</code>
+                          </div>
+                          <a href={`/api/v1/files/${encodeURIComponent(file.file_id)}/download`} download={file.name}>
+                            <Download size={17} />
+                            下载
+                          </a>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="result-empty">
+                      <FileText size={28} />
+                      <strong>暂无文件</strong>
+                      <span>上传文件后，这里会显示文件标识和下载入口。</span>
+                    </div>
+                  )}
+                </section>
               </div>
             </section>
           ) : null}

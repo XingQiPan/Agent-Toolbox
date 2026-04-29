@@ -82,7 +82,7 @@ describe("api service", () => {
           }),
           expect.objectContaining({
             id: "toolbox.upload_file",
-            status: "planned"
+            status: "available"
           })
         ])
       );
@@ -147,6 +147,58 @@ describe("api service", () => {
       expect(body.data.plugin_id).toBe("json.basic");
       expect(body.data.result.data.formatted).toBe("{\n  \"name\": \"aitbx\"\n}");
       expect(body.data.usage.duration_ms).toEqual(expect.any(Number));
+    });
+  });
+
+  it("uploads, reads, lists, and downloads files", async () => {
+    await withApp(async (app) => {
+      const uploadResponse = await app.inject({
+        method: "POST",
+        url: "/v1/files",
+        payload: {
+          name: "hello.txt",
+          mime_type: "text/plain",
+          content_base64: Buffer.from("hello toolbox", "utf8").toString("base64")
+        }
+      });
+      const uploadBody = uploadResponse.json();
+
+      expect(uploadResponse.statusCode).toBe(200);
+      expect(uploadBody.ok).toBe(true);
+      expect(uploadBody.data).toMatchObject({
+        name: "hello.txt",
+        mime_type: "text/plain",
+        size_bytes: 13,
+        kind: "input_file"
+      });
+      expect(uploadBody.data.file_id).toEqual(expect.stringMatching(/^file_/));
+
+      const infoResponse = await app.inject({
+        method: "GET",
+        url: `/v1/files/${uploadBody.data.file_id}`
+      });
+      const infoBody = infoResponse.json();
+
+      expect(infoResponse.statusCode).toBe(200);
+      expect(infoBody.data.file_id).toBe(uploadBody.data.file_id);
+
+      const listResponse = await app.inject({
+        method: "GET",
+        url: "/v1/files"
+      });
+      const listBody = listResponse.json();
+
+      expect(listResponse.statusCode).toBe(200);
+      expect(listBody.data.files).toContainEqual(infoBody.data);
+
+      const downloadResponse = await app.inject({
+        method: "GET",
+        url: `/v1/files/${uploadBody.data.file_id}/download`
+      });
+
+      expect(downloadResponse.statusCode).toBe(200);
+      expect(downloadResponse.headers["content-type"]).toContain("text/plain");
+      expect(downloadResponse.body).toBe("hello toolbox");
     });
   });
 

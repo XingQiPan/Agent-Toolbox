@@ -42,10 +42,33 @@ interface AiInterface {
   example_response?: unknown;
 }
 
+type FileKind = "input_file" | "output_file" | "temp_file" | "log_file" | "preview_file" | "archive_file";
+
+interface StoredFile {
+  file_id: string;
+  name: string;
+  mime_type: string;
+  size_bytes: number;
+  kind: FileKind;
+  created_at: string;
+  content: Buffer;
+}
+
+interface FileSummary {
+  file_id: string;
+  name: string;
+  mime_type: string;
+  size_bytes: number;
+  kind: FileKind;
+  created_at: string;
+}
+
 export interface BuildAppOptions {
   logger?: FastifyServerOptions["logger"];
   runtime?: ToolboxRuntime;
 }
+
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 export function createRuntime(): ToolboxRuntime {
   const runtime = new ToolboxRuntime();
@@ -79,6 +102,67 @@ function sendFailure(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toFileSummary(file: StoredFile): FileSummary {
+  return {
+    file_id: file.file_id,
+    name: file.name,
+    mime_type: file.mime_type,
+    size_bytes: file.size_bytes,
+    kind: file.kind,
+    created_at: file.created_at
+  };
+}
+
+function sanitizeFileName(name: string): string {
+  const sanitized = name.replace(/[\\/:*?"<>|]/g, "_").trim();
+  return sanitized.length > 0 ? sanitized.slice(0, 180) : "untitled";
+}
+
+function decodeBase64Content(value: string): Buffer | undefined {
+  const content = value.includes(",") ? value.slice(value.indexOf(",") + 1) : value;
+  const normalized = content.replace(/\s/g, "");
+
+  if (normalized.length === 0 || normalized.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) {
+    return undefined;
+  }
+
+  const buffer = Buffer.from(normalized, "base64");
+  return buffer.length > 0 ? buffer : undefined;
+}
+
+class InMemoryFileStore {
+  private readonly files = new Map<string, StoredFile>();
+
+  create(input: {
+    name: string;
+    mime_type?: string;
+    kind?: FileKind;
+    content: Buffer;
+  }): StoredFile {
+    const now = new Date().toISOString();
+    const file: StoredFile = {
+      file_id: `file_${crypto.randomUUID()}`,
+      name: sanitizeFileName(input.name),
+      mime_type: input.mime_type?.trim() || "application/octet-stream",
+      kind: input.kind ?? "input_file",
+      size_bytes: input.content.byteLength,
+      created_at: now,
+      content: input.content
+    };
+
+    this.files.set(file.file_id, file);
+    return file;
+  }
+
+  list(): FileSummary[] {
+    return [...this.files.values()].map(toFileSummary);
+  }
+
+  get(fileId: string): StoredFile | undefined {
+    return this.files.get(fileId);
+  }
 }
 
 function buildAiInterfaces(): AiInterface[] {
@@ -179,13 +263,36 @@ function buildAiInterfaces(): AiInterface[] {
       }
     },
     {
+      id: "toolbox.list_files",
+      title: "列出文件",
+      description: "查看当前运行时内存中的输入文件和工具产物。",
+      method: "GET",
+      path: "/v1/files",
+      status: "available",
+      ai_tool_name: "toolbox.list_files",
+      example_response: {
+        files: []
+      }
+    },
+    {
       id: "toolbox.upload_file",
       title: "上传文件",
       description: "把用户文件转换为文件标识，后续工具只引用文件标识。",
       method: "POST",
       path: "/v1/files",
-      status: "planned",
-      ai_tool_name: "toolbox.upload_file"
+      status: "available",
+      ai_tool_name: "toolbox.upload_file",
+      example_request: {
+        name: "input.txt",
+        mime_type: "text/plain",
+        content_base64: "SGVsbG8="
+      },
+      example_response: {
+        file_id: "file_abc123",
+        name: "input.txt",
+        mime_type: "text/plain",
+        size_bytes: 5
+      }
     },
     {
       id: "toolbox.get_file",
@@ -193,8 +300,17 @@ function buildAiInterfaces(): AiInterface[] {
       description: "查询产物或输入文件元数据，避免把大文件塞进模型上下文。",
       method: "GET",
       path: "/v1/files/{file_id}",
-      status: "planned",
+      status: "available",
       ai_tool_name: "toolbox.get_file"
+    },
+    {
+      id: "toolbox.download_file",
+      title: "下载文件",
+      description: "按文件标识下载原始文件内容，通常给用户或后续工具使用。",
+      method: "GET",
+      path: "/v1/files/{file_id}/download",
+      status: "available",
+      ai_tool_name: "toolbox.download_file"
     },
     {
       id: "toolbox.mcp_tools",
@@ -345,8 +461,10 @@ function registerErrorHandlers(app: FastifyInstance): void {
 
 export function buildApp(options: BuildAppOptions = {}) {
   const runtime = options.runtime ?? createRuntime();
+  const fileStore = new InMemoryFileStore();
   const app = Fastify({
-    logger: options.logger ?? false
+    logger: options.logger ?? false,
+    bodyLimit: 8 * 1024 * 1024
   });
 
   registerErrorHandlers(app);
@@ -375,6 +493,128 @@ export function buildApp(options: BuildAppOptions = {}) {
       interfaces: buildAiInterfaces()
     });
   });
+
+  app.get("/v1/files", async () => {
+    return success({
+      files: fileStore.list()
+    });
+  });
+
+  app.post<{
+    Body: {
+      name: string;
+      mime_type?: string;
+      kind?: FileKind;
+      content_base64: string;
+    };
+  }>(
+    "/v1/files",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["name", "content_base64"],
+          properties: {
+            name: {
+              type: "string",
+              minLength: 1
+            },
+            mime_type: {
+              type: "string",
+              minLength: 1
+            },
+            kind: {
+              type: "string",
+              enum: ["input_file", "output_file", "temp_file", "log_file", "preview_file", "archive_file"]
+            },
+            content_base64: {
+              type: "string",
+              minLength: 1
+            }
+          },
+          additionalProperties: false
+        }
+      }
+    },
+    async (request, reply) => {
+      const content = decodeBase64Content(request.body.content_base64);
+
+      if (!content) {
+        return sendFailure(reply, 400, "INVALID_FILE_CONTENT", "content_base64 must be valid base64.");
+      }
+
+      if (content.byteLength > MAX_FILE_BYTES) {
+        return sendFailure(reply, 413, "FILE_TOO_LARGE", `File exceeds ${MAX_FILE_BYTES} bytes.`);
+      }
+
+      const file = fileStore.create({
+        name: request.body.name,
+        mime_type: request.body.mime_type,
+        kind: request.body.kind,
+        content
+      });
+
+      return success(toFileSummary(file));
+    }
+  );
+
+  app.get<{ Params: { file_id: string } }>(
+    "/v1/files/:file_id",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["file_id"],
+          properties: {
+            file_id: {
+              type: "string",
+              minLength: 1
+            }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const file = fileStore.get(request.params.file_id);
+
+      if (!file) {
+        return sendFailure(reply, 404, "FILE_NOT_FOUND", `File not found: ${request.params.file_id}`);
+      }
+
+      return success(toFileSummary(file));
+    }
+  );
+
+  app.get<{ Params: { file_id: string } }>(
+    "/v1/files/:file_id/download",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["file_id"],
+          properties: {
+            file_id: {
+              type: "string",
+              minLength: 1
+            }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const file = fileStore.get(request.params.file_id);
+
+      if (!file) {
+        return sendFailure(reply, 404, "FILE_NOT_FOUND", `File not found: ${request.params.file_id}`);
+      }
+
+      return reply
+        .header("Content-Type", file.mime_type)
+        .header("Content-Length", String(file.size_bytes))
+        .header("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name)}"`)
+        .send(file.content);
+    }
+  );
 
   app.get("/v1/plugins", async () => {
     return success({

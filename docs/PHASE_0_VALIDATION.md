@@ -49,7 +49,7 @@ Expected result:
 - `pnpm build` runs `tsc` for `packages/core`, `packages/plugin-sdk`,
   `plugins/json-basic`, `apps/api`, and `apps/cli`.
 - `pnpm test` runs `pnpm build` and Vitest.
-- Vitest reports `2 passed` test files and `17 passed` tests in the integrated
+- Vitest reports `2 passed` test files and `19 passed` tests in the integrated
   Phase 0 tree.
 
 ## CLI Validation
@@ -294,6 +294,10 @@ Expected behavior:
   available REST interfaces, examples, and planned file/MCP capabilities.
 - `GET /v1/ai/interfaces` returns the same machine-readable interface list for
   docs, Web, scripts, or agents.
+- The file artifacts page uploads small files, shows generated file IDs,
+  metadata, and download links.
+- The API supports `GET /v1/files`, `POST /v1/files`, `GET /v1/files/{file_id}`,
+  and `GET /v1/files/{file_id}/download` with in-memory Phase 0 storage.
 - Navigation updates the address bar, so `/image-compress` and
   `/regex-collection` can be refreshed or shared during demos.
 - The image compression page lets a user upload an image, adjust quality,

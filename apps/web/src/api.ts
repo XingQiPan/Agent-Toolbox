@@ -87,6 +87,33 @@ export interface AiInterfacesResponse {
   interfaces: AiInterface[];
 }
 
+export interface FileSummary {
+  file_id: string;
+  name: string;
+  mime_type: string;
+  size_bytes: number;
+  kind: "input_file" | "output_file" | "temp_file" | "log_file" | "preview_file" | "archive_file";
+  created_at: string;
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("文件读取失败"));
+        return;
+      }
+
+      resolve(result.includes(",") ? result.slice(result.indexOf(",") + 1) : result);
+    };
+    reader.onerror = () => reject(new Error("文件读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
     ...init,
@@ -108,6 +135,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<{ status: string }>("/health"),
   aiInterfaces: () => request<AiInterfacesResponse>("/v1/ai/interfaces"),
+  files: () => request<{ files: FileSummary[] }>("/v1/files"),
+  uploadFile: async (file: File) =>
+    request<FileSummary>("/v1/files", {
+      method: "POST",
+      body: JSON.stringify({
+        name: file.name,
+        mime_type: file.type || "application/octet-stream",
+        content_base64: await fileToBase64(file)
+      })
+    }),
   plugins: () => request<{ plugins: PluginSummary[] }>("/v1/plugins"),
   tools: (query = "") =>
     request<{ tools: ToolSummary[] }>(`/v1/tools/search?q=${encodeURIComponent(query)}`),
