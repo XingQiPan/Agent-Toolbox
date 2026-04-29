@@ -771,9 +771,28 @@ p {
   background: #ffffff;
 }
 
+.tool-note-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .tool-note span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.security-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--green);
+}
+
+.security-hint span {
+  color: inherit;
 }
 
 .result-panel {
@@ -1154,7 +1173,8 @@ p {
 }
 
 .method-pill,
-.status-badge {
+.status-badge,
+.risk-badge {
   padding: 4px 9px;
   border-radius: 999px;
   font-size: 12px;
@@ -1174,6 +1194,24 @@ p {
 .status-badge.planned {
   background: #f3f4f6;
   color: var(--muted);
+}
+
+.status-badge.active,
+.risk-badge.low {
+  background: #e9f7ef;
+  color: var(--green);
+}
+
+.status-badge.used,
+.risk-badge.medium {
+  background: #fff7e6;
+  color: #b54708;
+}
+
+.status-badge.expired,
+.risk-badge.high {
+  background: #fff3f1;
+  color: var(--rose);
 }
 
 .endpoint-row {
@@ -1231,6 +1269,165 @@ p {
 
 .gap-panel span {
   font-weight: 700;
+}
+
+.security-summary {
+  margin-bottom: 16px;
+}
+
+.security-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: #eef8f2;
+  color: var(--green);
+}
+
+.security-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.security-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--tile);
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-heading h2 {
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.panel-heading span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.risk-grid,
+.permission-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.risk-card,
+.security-tool-card,
+.permission-type-grid article,
+.approval-row {
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.risk-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 14px;
+}
+
+.risk-card .risk-badge {
+  justify-self: start;
+}
+
+.risk-card p,
+.security-tool-card p,
+.permission-type-grid p {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.security-tool-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.security-tool-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.security-tool-card header,
+.security-tool-card footer,
+.approval-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.security-tool-card header strong,
+.security-tool-card header small,
+.approval-row strong,
+.approval-row small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.security-tool-card header small,
+.approval-row small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.permission-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.permission-chips span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.security-tool-card footer span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.approval-list {
+  display: grid;
+  gap: 10px;
+}
+
+.approval-row {
+  justify-content: start;
+  padding: 12px;
+}
+
+.permission-type-grid article {
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+}
+
+.permission-type-grid code {
+  justify-self: start;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #111827;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
 }
 
 .audit-list {
@@ -1352,7 +1549,10 @@ p {
   }
 
   .flow-steps,
-  .interface-grid {
+  .interface-grid,
+  .risk-grid,
+  .security-tool-list,
+  .permission-type-grid {
     grid-template-columns: 1fr;
   }
 }

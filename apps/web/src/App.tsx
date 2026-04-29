@@ -48,14 +48,17 @@ import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   type AiInterface,
+  type ApprovalSummary,
   type AuditCall,
   type FileSummary,
   type PluginSummary,
+  type SecurityPolicy,
+  type ToolSecurityProfile,
   type ToolRunResponse,
   type ToolSummary
 } from "./api.js";
 
-type PageId = "home" | "image-compress" | "regex-collection" | "json-tools" | "files" | "ai-access" | "audit";
+type PageId = "home" | "image-compress" | "regex-collection" | "json-tools" | "files" | "ai-access" | "security" | "audit";
 type ImageFormat = "image/jpeg" | "image/png" | "image/webp";
 type AppIcon = typeof Home;
 
@@ -108,6 +111,7 @@ const pages: Array<{ id: PageId; label: string }> = [
   { id: "json-tools", label: "数据工具" },
   { id: "files", label: "文件产物" },
   { id: "ai-access", label: "智能体接入" },
+  { id: "security", label: "权限审批" },
   { id: "audit", label: "审计" }
 ];
 
@@ -156,6 +160,12 @@ const pinnedTools: HomeTool[] = [
     description: "查看可给智能体接入的接口",
     icon: Bot,
     page: "ai-access"
+  },
+  {
+    title: "权限审批",
+    description: "查看工具风险、权限和审批令牌",
+    icon: ShieldCheck,
+    page: "security"
   },
   {
     title: "文件产物",
@@ -218,6 +228,7 @@ const homeSections: HomeSection[] = [
       { title: "数据验证", description: "验证结构化文本", icon: CheckCircle2, page: "json-tools", apiTool: "json.validate" },
       { title: "调用审计", description: "查看接口和本地工具调用", icon: Database, page: "audit" },
       { title: "智能体接入", description: "查看工具搜索、详情和执行接口", icon: Bot, page: "ai-access" },
+      { title: "权限审批", description: "查看风险等级和审批记录", icon: ShieldCheck, page: "security" },
       { title: "文件产物", description: "为工具和智能体准备文件标识", icon: FileText, page: "files" },
       { title: "工具搜索", description: "按能力搜索工具", icon: Search, planned: true },
       { title: "插件市场", description: "安装和管理插件", icon: Box, planned: true }
@@ -418,6 +429,42 @@ function methodLabel(method: AiInterface["method"]): string {
   return method === "GET" ? "读取" : "提交";
 }
 
+function describeFlowStep(step: string, index: number): string {
+  if (step === "toolbox.search_tools" || index === 0) return "根据任务关键词搜索候选工具。";
+  if (step === "toolbox.get_tool_schema" || index === 1) return "只加载少量候选工具的输入输出参数结构。";
+  if (step === "toolbox.get_tool_security") return "检查风险等级、权限声明和是否需要人工审批。";
+  if (step === "toolbox.create_approval") return "中高风险工具先创建一次性审批令牌。";
+  return "按参数结构传入参数，必要时附带审批令牌并执行工具。";
+}
+
+function localizeRiskLevel(riskLevel: ToolSummary["risk_level"]): string {
+  const names: Record<ToolSummary["risk_level"], string> = {
+    low: "低风险",
+    medium: "中风险",
+    high: "高风险"
+  };
+  return names[riskLevel];
+}
+
+function localizeApprovalStatus(status: ApprovalSummary["status"]): string {
+  const names: Record<ApprovalSummary["status"], string> = {
+    active: "有效",
+    used: "已使用",
+    expired: "已过期"
+  };
+  return names[status];
+}
+
+function formatPermissions(permissions: ToolSecurityProfile["permissions"]): string[] {
+  return [
+    permissions.filesystem.length > 0 ? `文件：${permissions.filesystem.join("、")}` : "文件：无",
+    permissions.network ? "网络：允许" : "网络：禁止",
+    permissions.secrets.length > 0 ? `密钥：${permissions.secrets.join("、")}` : "密钥：无",
+    permissions.shell ? "Shell：允许" : "Shell：禁止",
+    `限制：${permissions.max_runtime_seconds}s / ${permissions.max_memory_mb}MB`
+  ];
+}
+
 function resultText(result: ToolRunResponse | null, toolName: string): string {
   if (!result) return "";
   const data = result.result.data;
@@ -466,7 +513,7 @@ function pageCategory(page: PageId, homeCategory: string): string {
   if (page === "image-compress") return "图片应用";
   if (page === "regex-collection") return "文字应用";
   if (page === "files") return "文档应用";
-  if (page === "json-tools" || page === "ai-access" || page === "audit") return "智能应用";
+  if (page === "json-tools" || page === "ai-access" || page === "security" || page === "audit") return "智能应用";
   return "首页";
 }
 
@@ -482,8 +529,11 @@ export function App() {
   const [health, setHealth] = useState<"checking" | "ok" | "error">("checking");
   const [plugins, setPlugins] = useState<PluginSummary[]>([]);
   const [apiTools, setApiTools] = useState<ToolSummary[]>([]);
+  const [toolSecurityByName, setToolSecurityByName] = useState<Record<string, ToolSecurityProfile>>({});
   const [aiInterfaces, setAiInterfaces] = useState<AiInterface[]>([]);
   const [recommendedFlow, setRecommendedFlow] = useState<string[]>([]);
+  const [securityPolicy, setSecurityPolicy] = useState<SecurityPolicy | null>(null);
+  const [approvals, setApprovals] = useState<ApprovalSummary[]>([]);
   const [files, setFiles] = useState<FileSummary[]>([]);
   const [auditCalls, setAuditCalls] = useState<AuditCall[]>([]);
   const [localHistory, setLocalHistory] = useState<LocalHistoryItem[]>([]);
@@ -509,6 +559,8 @@ export function App() {
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [approvalMessage, setApprovalMessage] = useState<string | null>(null);
+  const [creatingApprovalFor, setCreatingApprovalFor] = useState<string | null>(null);
 
   const [selectedRegexId, setSelectedRegexId] = useState(regexRecipes[0].id);
   const [regexSearch, setRegexSearch] = useState("");
@@ -525,6 +577,7 @@ export function App() {
     () => apiTools.find((tool) => tool.name === selectedApiTool),
     [apiTools, selectedApiTool]
   );
+  const selectedToolSecurity = selectedTool ? toolSecurityByName[selectedTool.name] : undefined;
   const visiblePinnedTools = useMemo(() => {
     if (homeCategory !== "首页") return [];
     return pinnedTools.filter((tool) => toolMatches(tool, search, "首页"));
@@ -560,24 +613,37 @@ export function App() {
 
   const totalAuditCount = auditCalls.length + localHistory.length;
   const totalToolCount = pinnedTools.length + homeSections.reduce((count, section) => count + section.tools.length, 0);
+  const activeApprovalCount = approvals.filter((item) => item.status === "active").length;
   const activeCategory = pageCategory(activePage, homeCategory);
 
   async function refresh() {
     setError(null);
     try {
-      const [healthResult, interfaceResult, pluginResult, toolResult, fileResult, auditResult] = await Promise.all([
+      const [healthResult, interfaceResult, pluginResult, toolResult, policyResult, approvalResult, fileResult, auditResult] = await Promise.all([
         api.health(),
         api.aiInterfaces(),
         api.plugins(),
         api.tools(""),
+        api.securityPolicy(),
+        api.approvals(),
         api.files(),
         api.auditCalls()
       ]);
+      const securityResults = await Promise.allSettled(toolResult.tools.map((tool) => api.toolSecurity(tool.name)));
+      const securityMap: Record<string, ToolSecurityProfile> = {};
+      for (const item of securityResults) {
+        if (item.status === "fulfilled") {
+          securityMap[item.value.tool_name] = item.value;
+        }
+      }
       setHealth(healthResult.status === "ok" ? "ok" : "error");
       setAiInterfaces(interfaceResult.interfaces);
       setRecommendedFlow(interfaceResult.recommended_flow);
       setPlugins(pluginResult.plugins);
       setApiTools(toolResult.tools);
+      setSecurityPolicy(policyResult);
+      setApprovals(approvalResult.approvals);
+      setToolSecurityByName(securityMap);
       setFiles(fileResult.files);
       setAuditCalls(auditResult.calls);
     } catch (caught) {
@@ -776,6 +842,26 @@ export function App() {
     }
   }
 
+  async function createApprovalForTool(toolName: string) {
+    setCreatingApprovalFor(toolName);
+    setApprovalMessage(null);
+    setError(null);
+    try {
+      const result = await api.createApproval(toolName, `用户在 Web 控制台确认执行 ${toolName}`);
+      if (result.approval_required && result.approval_token) {
+        setApprovalMessage(`已为 ${localizeToolName(toolName)} 创建一次性审批令牌，有效期 15 分钟。`);
+      } else {
+        setApprovalMessage(result.message ?? `${localizeToolName(toolName)} 不需要审批。`);
+      }
+      const approvalResult = await api.approvals();
+      setApprovals(approvalResult.approvals);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "创建审批失败");
+    } finally {
+      setCreatingApprovalFor(null);
+    }
+  }
+
   function selectRegex(recipe: RegexRecipe) {
     setSelectedRegexId(recipe.id);
     setRegexPattern(recipe.pattern);
@@ -880,6 +966,7 @@ export function App() {
               <div className="stats-strip">
                 <span>插件 {plugins.length}</span>
                 <span>接口工具 {apiTools.length}</span>
+                <span>有效审批 {activeApprovalCount}</span>
                 <span>调用 {totalAuditCount}</span>
                 <span className={health === "ok" ? "ok" : health === "error" ? "error" : ""}>
                   {health === "ok" ? "接口已连接" : health === "checking" ? "接口检查中" : "接口未连接"}
@@ -1102,8 +1189,17 @@ export function App() {
                 <div className="json-runner">
                   {selectedTool ? (
                     <div className="tool-note">
-                      <strong>{localizeToolName(selectedTool.name)}</strong>
+                      <div className="tool-note-title">
+                        <strong>{localizeToolName(selectedTool.name)}</strong>
+                        <span className={`risk-badge ${selectedTool.risk_level}`}>{localizeRiskLevel(selectedTool.risk_level)}</span>
+                      </div>
                       <span>{localizeToolDescription(selectedTool)}</span>
+                      {selectedToolSecurity ? (
+                        <div className="security-hint">
+                          <ShieldCheck size={15} />
+                          <span>{selectedToolSecurity.approval_required ? selectedToolSecurity.approval_reason : "低风险，无需审批，可直接执行。"}</span>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                   <label>
@@ -1294,7 +1390,7 @@ export function App() {
                   <span>规划中接口</span>
                 </article>
                 <article>
-                  <strong>{recommendedFlow.length || 3}</strong>
+                  <strong>{recommendedFlow.length || 5}</strong>
                   <span>推荐基础工具</span>
                 </article>
               </div>
@@ -1304,18 +1400,12 @@ export function App() {
                 <div className="flow-steps">
                   {(recommendedFlow.length > 0
                     ? recommendedFlow
-                    : ["toolbox.search_tools", "toolbox.get_tool_schema", "toolbox.run_tool"]
+                    : ["toolbox.search_tools", "toolbox.get_tool_schema", "toolbox.get_tool_security", "toolbox.create_approval", "toolbox.run_tool"]
                   ).map((step, index) => (
                     <div className="flow-step" key={step}>
                       <span>{index + 1}</span>
                       <strong>{step}</strong>
-                      <p>
-                        {index === 0
-                          ? "根据任务关键词搜索候选工具。"
-                          : index === 1
-                            ? "只加载少量候选工具的输入输出参数结构。"
-                            : "按参数结构传入结构化参数并执行工具。"}
-                      </p>
+                      <p>{describeFlowStep(step, index)}</p>
                     </div>
                   ))}
                 </div>
@@ -1362,7 +1452,7 @@ export function App() {
                 </div>
                 <div>
                   <span>权限与审批</span>
-                  <p>中高风险工具需要权限声明、人工确认、审计和可撤销策略。</p>
+                  <p>已接入安全策略、工具权限资料和一次性审批令牌；后续会接更细粒度的组织策略。</p>
                 </div>
                 <div>
                   <span>模型接入网关</span>
@@ -1373,6 +1463,149 @@ export function App() {
                   <p>导出 MCP 服务、技能包或接口文档，让更多客户端接入。</p>
                 </div>
               </section>
+            </section>
+          ) : null}
+
+          {activePage === "security" ? (
+            <section className="tool-page security-page">
+              <div className="page-title">
+                <div>
+                  <p className="eyebrow">智能应用</p>
+                  <h1>权限审批</h1>
+                  <p>把开发文档里的风险等级、权限声明和人工确认做成可操作页面，避免 AI 工具静默执行高风险动作。</p>
+                </div>
+                <ShieldCheck size={26} />
+              </div>
+
+              <div className="access-summary security-summary">
+                <article>
+                  <strong>{apiTools.length}</strong>
+                  <span>已注册工具</span>
+                </article>
+                <article>
+                  <strong>{apiTools.filter((tool) => toolSecurityByName[tool.name]?.approval_required).length}</strong>
+                  <span>需要审批工具</span>
+                </article>
+                <article>
+                  <strong>{activeApprovalCount}</strong>
+                  <span>当前有效审批</span>
+                </article>
+              </div>
+
+              {approvalMessage ? (
+                <section className="security-message">
+                  <ShieldCheck size={18} />
+                  <span>{approvalMessage}</span>
+                </section>
+              ) : null}
+
+              <div className="security-layout">
+                <section className="security-panel">
+                  <div className="panel-heading">
+                    <h2>风险策略</h2>
+                    <span>审批令牌有效期 {securityPolicy ? Math.round(securityPolicy.approval_ttl_seconds / 60) : 15} 分钟</span>
+                  </div>
+                  <div className="risk-grid">
+                    {(securityPolicy?.risk_levels ?? []).map((item) => (
+                      <article className="risk-card" key={item.risk_level}>
+                        <span className={`risk-badge ${item.risk_level}`}>{item.label}</span>
+                        <strong>{item.approval_required ? "执行前需要确认" : "可直接执行"}</strong>
+                        <p>{item.description}</p>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="security-panel">
+                  <div className="panel-heading">
+                    <h2>工具权限列表</h2>
+                    <span>来自插件 manifest 与工具风险等级</span>
+                  </div>
+                  <div className="security-tool-list">
+                    {apiTools.map((tool) => {
+                      const security = toolSecurityByName[tool.name];
+                      const riskLevel = security?.risk_level ?? tool.risk_level;
+                      const approvalRequired = security?.approval_required ?? tool.risk_level !== "low";
+
+                      return (
+                        <article className="security-tool-card" key={tool.name}>
+                          <header>
+                            <div>
+                              <strong>{localizeToolName(tool.name)}</strong>
+                              <small>{tool.name}</small>
+                            </div>
+                            <span className={`risk-badge ${riskLevel}`}>{localizeRiskLevel(riskLevel)}</span>
+                          </header>
+                          <p>{security?.approval_reason ?? localizeToolDescription(tool)}</p>
+                          {security ? (
+                            <div className="permission-chips">
+                              {formatPermissions(security.permissions).map((item) => (
+                                <span key={item}>{item}</span>
+                              ))}
+                            </div>
+                          ) : null}
+                          <footer>
+                            <span>{approvalRequired ? "执行前必须创建审批令牌" : "当前无需审批"}</span>
+                            <button
+                              type="button"
+                              className="copy-button"
+                              onClick={() => createApprovalForTool(tool.name)}
+                              disabled={!approvalRequired || creatingApprovalFor === tool.name}
+                            >
+                              {creatingApprovalFor === tool.name ? "创建中..." : approvalRequired ? "创建审批" : "无需审批"}
+                            </button>
+                          </footer>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section className="security-panel">
+                  <div className="panel-heading">
+                    <h2>审批记录</h2>
+                    <span>{approvals.length} 条记录</span>
+                  </div>
+                  {approvals.length > 0 ? (
+                    <div className="approval-list">
+                      {approvals.map((approval) => (
+                        <article className="approval-row" key={approval.approval_id}>
+                          <span className={`status-badge ${approval.status}`}>{localizeApprovalStatus(approval.status)}</span>
+                          <div>
+                            <strong>{localizeToolName(approval.tool_name)}</strong>
+                            <small>
+                              {localizeRiskLevel(approval.risk_level)} · {approval.reason} · 到期{" "}
+                              {new Date(approval.expires_at).toLocaleString()}
+                            </small>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="result-empty">
+                      <ShieldCheck size={28} />
+                      <strong>暂无审批记录</strong>
+                      <span>当中高风险工具接入后，可以在这里创建和追踪一次性审批令牌。</span>
+                    </div>
+                  )}
+                </section>
+
+                <section className="security-panel">
+                  <div className="panel-heading">
+                    <h2>权限类型</h2>
+                    <span>给插件作者和智能体看的边界</span>
+                  </div>
+                  <div className="permission-type-grid">
+                    {(securityPolicy?.permission_types ?? []).map((item) => (
+                      <article key={item.key}>
+                        <strong>{item.label}</strong>
+                        <code>{item.key}</code>
+                        <p>{item.description}</p>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              </div>
             </section>
           ) : null}
 

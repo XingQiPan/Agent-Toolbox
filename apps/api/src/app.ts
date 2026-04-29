@@ -4,7 +4,7 @@ import Fastify, {
   type FastifyReply,
   type FastifyServerOptions
 } from "fastify";
-import type { JsonSchema } from "@agent-toolbox/core";
+import type { JsonSchema, PluginManifest, RegisteredTool, RiskLevel } from "@agent-toolbox/core";
 import { ToolboxRuntime } from "@agent-toolbox/core";
 import { jsonBasicPlugin } from "@agent-toolbox/plugin-json-basic";
 
@@ -63,12 +63,69 @@ interface FileSummary {
   created_at: string;
 }
 
+type ApprovalState = "active" | "used" | "expired";
+
+interface ToolPermissions {
+  filesystem: string[];
+  network: boolean;
+  secrets: string[];
+  shell: boolean;
+  max_runtime_seconds: number;
+  max_memory_mb: number;
+}
+
+interface ToolSecurityProfile {
+  tool_name: string;
+  plugin_id: string;
+  risk_level: RiskLevel;
+  approval_required: boolean;
+  approval_reason: string;
+  permissions: ToolPermissions;
+  policy: {
+    decision: "allow" | "require_approval";
+    approval_ttl_seconds: number;
+  };
+}
+
+interface ApprovalRecord {
+  approval_id: string;
+  approval_token: string;
+  tool_name: string;
+  plugin_id: string;
+  risk_level: RiskLevel;
+  reason: string;
+  created_at: string;
+  expires_at: string;
+  used_at?: string;
+}
+
+interface ApprovalSummary {
+  approval_id: string;
+  tool_name: string;
+  plugin_id: string;
+  risk_level: RiskLevel;
+  reason: string;
+  status: ApprovalState;
+  created_at: string;
+  expires_at: string;
+  used_at?: string;
+}
+
 export interface BuildAppOptions {
   logger?: FastifyServerOptions["logger"];
   runtime?: ToolboxRuntime;
 }
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const APPROVAL_TTL_SECONDS = 15 * 60;
+const DEFAULT_PERMISSIONS: ToolPermissions = {
+  filesystem: [],
+  network: false,
+  secrets: [],
+  shell: false,
+  max_runtime_seconds: 5,
+  max_memory_mb: 128
+};
 
 export function createRuntime(): ToolboxRuntime {
   const runtime = new ToolboxRuntime();
@@ -165,6 +222,183 @@ class InMemoryFileStore {
   }
 }
 
+class InMemoryApprovalStore {
+  private readonly approvals = new Map<string, ApprovalRecord>();
+
+  create(profile: ToolSecurityProfile): ApprovalRecord {
+    const now = new Date();
+    const approval: ApprovalRecord = {
+      approval_id: `appr_${crypto.randomUUID()}`,
+      approval_token: `apprtok_${crypto.randomUUID()}`,
+      tool_name: profile.tool_name,
+      plugin_id: profile.plugin_id,
+      risk_level: profile.risk_level,
+      reason: profile.approval_reason,
+      created_at: now.toISOString(),
+      expires_at: new Date(now.getTime() + APPROVAL_TTL_SECONDS * 1000).toISOString()
+    };
+
+    this.approvals.set(approval.approval_id, approval);
+    return approval;
+  }
+
+  list(): ApprovalSummary[] {
+    return [...this.approvals.values()].map(toApprovalSummary);
+  }
+
+  consume(toolName: string, token: string | undefined): ApprovalRecord | undefined {
+    if (!token) {
+      return undefined;
+    }
+
+    const approval = [...this.approvals.values()].find((item) => item.approval_token === token);
+    if (!approval || approval.tool_name !== toolName || getApprovalState(approval) !== "active") {
+      return undefined;
+    }
+
+    approval.used_at = new Date().toISOString();
+    return approval;
+  }
+}
+
+function getApprovalState(approval: ApprovalRecord): ApprovalState {
+  if (approval.used_at) {
+    return "used";
+  }
+
+  return Date.parse(approval.expires_at) <= Date.now() ? "expired" : "active";
+}
+
+function toApprovalSummary(approval: ApprovalRecord): ApprovalSummary {
+  return {
+    approval_id: approval.approval_id,
+    tool_name: approval.tool_name,
+    plugin_id: approval.plugin_id,
+    risk_level: approval.risk_level,
+    reason: approval.reason,
+    status: getApprovalState(approval),
+    created_at: approval.created_at,
+    expires_at: approval.expires_at,
+    used_at: approval.used_at
+  };
+}
+
+function getToolPlugin(runtime: ToolboxRuntime, tool: RegisteredTool): PluginManifest | undefined {
+  return runtime.listPlugins().find((plugin) => plugin.id === tool.plugin_id);
+}
+
+function formatRiskLevel(riskLevel: RiskLevel): string {
+  if (riskLevel === "low") return "低风险";
+  if (riskLevel === "medium") return "中风险";
+  return "高风险";
+}
+
+function describeToolSecurity(runtime: ToolboxRuntime, tool: RegisteredTool): ToolSecurityProfile {
+  const permissions = getToolPlugin(runtime, tool)?.permissions ?? DEFAULT_PERMISSIONS;
+  const reasons: string[] = [];
+
+  if (tool.risk_level !== "low") {
+    reasons.push(`${formatRiskLevel(tool.risk_level)}工具需要人工确认`);
+  }
+
+  if (permissions.shell) {
+    reasons.push("声明了 Shell 执行权限");
+  }
+
+  if (permissions.network) {
+    reasons.push("声明了网络访问权限");
+  }
+
+  if (permissions.secrets.length > 0) {
+    reasons.push("声明了密钥读取权限");
+  }
+
+  const approvalRequired = reasons.length > 0;
+
+  return {
+    tool_name: tool.name,
+    plugin_id: tool.plugin_id,
+    risk_level: tool.risk_level,
+    approval_required: approvalRequired,
+    approval_reason: approvalRequired ? reasons.join("；") : "低风险工具，无敏感权限声明，可直接执行。",
+    permissions,
+    policy: {
+      decision: approvalRequired ? "require_approval" : "allow",
+      approval_ttl_seconds: APPROVAL_TTL_SECONDS
+    }
+  };
+}
+
+function buildSecurityPolicy() {
+  return {
+    approval_ttl_seconds: APPROVAL_TTL_SECONDS,
+    risk_levels: [
+      {
+        risk_level: "low" satisfies RiskLevel,
+        label: "低风险",
+        description: "只处理显式输入，不访问网络、密钥、Shell 或用户文件时可直接执行。",
+        approval_required: false
+      },
+      {
+        risk_level: "medium" satisfies RiskLevel,
+        label: "中风险",
+        description: "可能读取文件、访问外部服务或产生可见副作用，执行前需要确认。",
+        approval_required: true
+      },
+      {
+        risk_level: "high" satisfies RiskLevel,
+        label: "高风险",
+        description: "可能写入项目、调用 Shell、读取密钥或执行不可逆动作，必须人工审批。",
+        approval_required: true
+      }
+    ],
+    permission_types: [
+      {
+        key: "filesystem",
+        label: "文件系统",
+        description: "声明工具可读取或写入的目录范围。"
+      },
+      {
+        key: "network",
+        label: "网络访问",
+        description: "声明工具是否会访问外部网络。"
+      },
+      {
+        key: "secrets",
+        label: "密钥读取",
+        description: "声明工具需要读取的密钥名称。"
+      },
+      {
+        key: "shell",
+        label: "Shell 执行",
+        description: "声明工具是否需要启动命令行进程。"
+      },
+      {
+        key: "runtime_limits",
+        label: "运行限制",
+        description: "声明最长运行时间和最大内存上限。"
+      }
+    ],
+    rules: [
+      {
+        id: "low-risk-auto-run",
+        title: "低风险自动执行",
+        description: "低风险且没有敏感权限声明的工具可直接运行，并记录审计。"
+      },
+      {
+        id: "approval-before-side-effect",
+        title: "副作用前审批",
+        description: "中高风险、网络、Shell 或密钥权限工具必须先创建审批令牌。"
+      },
+      {
+        id: "single-use-token",
+        title: "审批令牌一次性使用",
+        description: "审批令牌有效期 15 分钟，成功执行后立即失效。"
+      }
+    ]
+  };
+}
+
 function buildAiInterfaces(): AiInterface[] {
   return [
     {
@@ -211,7 +445,7 @@ function buildAiInterfaces(): AiInterface[] {
     {
       id: "toolbox.run_tool",
       title: "执行工具",
-      description: "智能体根据工具参数结构传入结构化输入，运行时校验、执行并记录审计。",
+      description: "智能体根据工具参数结构传入结构化输入，低风险直接执行，中高风险需附带审批令牌。",
       method: "POST",
       path: "/v1/tools/{tool_name}/run",
       status: "available",
@@ -221,6 +455,7 @@ function buildAiInterfaces(): AiInterface[] {
           text: "{\"name\":\"aitbx\"}",
           indent: 2
         },
+        approval_token: "apprtok_optional",
         session_id: "sess_001"
       },
       example_response: {
@@ -232,6 +467,62 @@ function buildAiInterfaces(): AiInterface[] {
             formatted: "{\n  \"name\": \"aitbx\"\n}"
           }
         }
+      }
+    },
+    {
+      id: "toolbox.get_security_policy",
+      title: "获取安全策略",
+      description: "查看风险等级、权限类型和审批规则，适合智能体初始化时加载治理边界。",
+      method: "GET",
+      path: "/v1/security/policy",
+      status: "available",
+      ai_tool_name: "toolbox.get_security_policy",
+      example_response: {
+        approval_ttl_seconds: APPROVAL_TTL_SECONDS,
+        risk_levels: [
+          {
+            risk_level: "low",
+            approval_required: false
+          },
+          {
+            risk_level: "high",
+            approval_required: true
+          }
+        ]
+      }
+    },
+    {
+      id: "toolbox.get_tool_security",
+      title: "获取工具安全资料",
+      description: "在执行前检查工具风险等级、权限声明和是否需要人工审批。",
+      method: "GET",
+      path: "/v1/tools/{tool_name}/security",
+      status: "available",
+      ai_tool_name: "toolbox.get_tool_security",
+      example_request: {
+        tool_name: "json.format"
+      },
+      example_response: {
+        tool_name: "json.format",
+        risk_level: "low",
+        approval_required: false
+      }
+    },
+    {
+      id: "toolbox.create_approval",
+      title: "创建审批令牌",
+      description: "当工具安全资料提示需要审批时，先创建一次性审批令牌，再执行工具。",
+      method: "POST",
+      path: "/v1/approvals",
+      status: "available",
+      ai_tool_name: "toolbox.create_approval",
+      example_request: {
+        tool_name: "email.send_with_approval",
+        reason: "用户已在界面确认发送邮件"
+      },
+      example_response: {
+        approval_token: "apprtok_abc",
+        expires_at: "2026-04-30T12:00:00.000Z"
       }
     },
     {
@@ -462,6 +753,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
 export function buildApp(options: BuildAppOptions = {}) {
   const runtime = options.runtime ?? createRuntime();
   const fileStore = new InMemoryFileStore();
+  const approvalStore = new InMemoryApprovalStore();
   const app = Fastify({
     logger: options.logger ?? false,
     bodyLimit: 8 * 1024 * 1024
@@ -480,19 +772,87 @@ export function buildApp(options: BuildAppOptions = {}) {
       recommended_flow: [
         "toolbox.search_tools",
         "toolbox.get_tool_schema",
+        "toolbox.get_tool_security",
+        "toolbox.create_approval",
         "toolbox.run_tool"
       ],
       guidance: {
-        principle: "不要一次性把全部工具参数结构暴露给模型，先搜索，再懒加载参数结构，最后精准执行。",
+        principle: "不要一次性把全部工具参数结构暴露给模型，先搜索，再懒加载参数结构，执行前检查安全资料，需要时创建审批令牌，最后精准执行。",
         first_stage_tools: [
           "toolbox.search_tools",
           "toolbox.get_tool_schema",
+          "toolbox.get_tool_security",
+          "toolbox.create_approval",
           "toolbox.run_tool"
         ]
       },
       interfaces: buildAiInterfaces()
     });
   });
+
+  app.get("/v1/security/policy", async () => {
+    return success(buildSecurityPolicy());
+  });
+
+  app.get("/v1/approvals", async () => {
+    return success({
+      approvals: approvalStore.list()
+    });
+  });
+
+  app.post<{
+    Body: { tool_name: string; reason?: string };
+  }>(
+    "/v1/approvals",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["tool_name"],
+          properties: {
+            tool_name: {
+              type: "string",
+              minLength: 1
+            },
+            reason: {
+              type: "string",
+              minLength: 1
+            }
+          },
+          additionalProperties: false
+        }
+      }
+    },
+    async (request, reply) => {
+      const tool = runtime.getTool(request.body.tool_name);
+
+      if (!tool) {
+        return sendFailure(reply, 404, "TOOL_NOT_FOUND", `Tool not found: ${request.body.tool_name}`);
+      }
+
+      const security = describeToolSecurity(runtime, tool);
+      if (!security.approval_required) {
+        return success({
+          approval_required: false,
+          tool_name: tool.name,
+          message: "该工具为低风险工具，可直接执行。"
+        });
+      }
+
+      const approval = approvalStore.create({
+        ...security,
+        approval_reason: request.body.reason?.trim() || security.approval_reason
+      });
+
+      return reply.code(201).send(
+        success({
+          ...toApprovalSummary(approval),
+          approval_required: true,
+          approval_token: approval.approval_token
+        })
+      );
+    }
+  );
 
   app.get("/v1/files", async () => {
     return success({
@@ -677,8 +1037,35 @@ export function buildApp(options: BuildAppOptions = {}) {
     }
   );
 
+  app.get<{ Params: { name: string } }>(
+    "/v1/tools/:name/security",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["name"],
+          properties: {
+            name: {
+              type: "string",
+              minLength: 1
+            }
+          }
+        }
+      }
+    },
+    async (request, reply) => {
+      const tool = runtime.getTool(request.params.name);
+
+      if (!tool) {
+        return sendFailure(reply, 404, "TOOL_NOT_FOUND", `Tool not found: ${request.params.name}`);
+      }
+
+      return success(describeToolSecurity(runtime, tool));
+    }
+  );
+
   app.post<{
-    Body: { input: Record<string, unknown>; session_id?: string };
+    Body: { input: Record<string, unknown>; session_id?: string; approval_token?: string };
     Params: { name: string };
   }>(
     "/v1/tools/:name/run",
@@ -705,6 +1092,10 @@ export function buildApp(options: BuildAppOptions = {}) {
             session_id: {
               type: "string",
               minLength: 1
+            },
+            approval_token: {
+              type: "string",
+              minLength: 1
             }
           },
           additionalProperties: false
@@ -723,6 +1114,13 @@ export function buildApp(options: BuildAppOptions = {}) {
       if (issues.length > 0) {
         return sendFailure(reply, 400, "INVALID_INPUT", "Tool input failed validation.", {
           issues
+        });
+      }
+
+      const security = describeToolSecurity(runtime, tool);
+      if (security.approval_required && !approvalStore.consume(tool.name, request.body.approval_token)) {
+        return sendFailure(reply, 403, "APPROVAL_REQUIRED", "该工具需要有效的一次性审批令牌后才能执行。", {
+          security
         });
       }
 

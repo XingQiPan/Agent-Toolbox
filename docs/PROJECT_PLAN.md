@@ -8,8 +8,9 @@
 
 - 建立 TypeScript monorepo 工程骨架。
 - 拆分 API、CLI、Core、Plugin SDK 的基本包边界。
-- 定义插件 manifest、工具注册、工具搜索、工具执行、审计日志的最小实现。
+- 定义插件 manifest、工具注册、工具搜索、工具执行、权限审批、文件产物和审计日志的最小实现。
 - 提供 `json-basic` 示例插件，跑通 `json.format` 和 `json.validate`。
+- 提供中文 Web 控制台，支持工具箱首页、图片压缩、正则大全、数据工具、文件产物、权限审批、智能体接入和审计查看。
 - 建立多 Agent worktree 开发规则与任务分工方式。
 
 验收命令：
@@ -37,6 +38,10 @@ pnpm --filter @agent-toolbox/api dev
 
 - `GET /v1/tools/search`
 - `GET /v1/tools/:name`
+- `GET /v1/tools/:name/security`
+- `GET /v1/security/policy`
+- `GET /v1/approvals`
+- `POST /v1/approvals`
 - `POST /v1/tools/:name/run`
 - `GET /v1/plugins`
 - `aitbx plugin install`
@@ -88,6 +93,8 @@ pnpm --filter @agent-toolbox/api dev
 
 - `toolbox.search_tools`
 - `toolbox.get_tool_schema`
+- `toolbox.get_tool_security`
+- `toolbox.create_approval`
 - `toolbox.run_tool`
 - Provider Adapter 基础接口。
 

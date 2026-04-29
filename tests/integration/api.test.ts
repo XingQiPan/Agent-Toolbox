@@ -1,9 +1,90 @@
 import type { FastifyInstance } from "fastify";
 import { describe, expect, it } from "vitest";
+import { ToolboxRuntime, type ToolboxPlugin, type ToolResult } from "@agent-toolbox/core";
 import { buildApp } from "../../apps/api/src/app.js";
 
 async function withApp<T>(run: (app: FastifyInstance) => Promise<T>): Promise<T> {
   const app = buildApp();
+
+  try {
+    await app.ready();
+    return await run(app);
+  } finally {
+    await app.close();
+  }
+}
+
+function createSuccessResult(summary: string): ToolResult {
+  return {
+    ok: true,
+    result: {
+      summary,
+      artifacts: [],
+      data: {
+        delivered: true
+      }
+    },
+    usage: {
+      duration_ms: 0,
+      cost_usd: 0
+    }
+  };
+}
+
+function createApprovalRuntime(): ToolboxRuntime {
+  const runtime = new ToolboxRuntime();
+  const plugin: ToolboxPlugin = {
+    manifest: {
+      schema_version: "0.1",
+      id: "approval.demo",
+      name: "Approval Demo",
+      version: "0.1.0",
+      description: "Demo plugin for approval protected tools.",
+      runtime: {
+        type: "builtin"
+      },
+      permissions: {
+        filesystem: [],
+        network: true,
+        secrets: ["SMTP_TOKEN"],
+        shell: false,
+        max_runtime_seconds: 10,
+        max_memory_mb: 128
+      },
+      tools: [
+        {
+          name: "email.send_with_approval",
+          title: "Send Email With Approval",
+          description: "Send a user-approved email.",
+          category: "email",
+          risk_level: "high",
+          input_schema: {
+            type: "object",
+            properties: {
+              to: {
+                type: "string"
+              },
+              body: {
+                type: "string"
+              }
+            },
+            required: ["to", "body"],
+            additionalProperties: false
+          }
+        }
+      ]
+    },
+    handlers: {
+      "email.send_with_approval": () => createSuccessResult("Email sent.")
+    }
+  };
+
+  runtime.registerPlugin(plugin);
+  return runtime;
+}
+
+async function withCustomApp<T>(runtime: ToolboxRuntime, run: (app: FastifyInstance) => Promise<T>): Promise<T> {
+  const app = buildApp({ runtime });
 
   try {
     await app.ready();
@@ -64,6 +145,8 @@ describe("api service", () => {
       expect(body.data.recommended_flow).toEqual([
         "toolbox.search_tools",
         "toolbox.get_tool_schema",
+        "toolbox.get_tool_security",
+        "toolbox.create_approval",
         "toolbox.run_tool"
       ]);
       expect(body.data.interfaces).toEqual(
@@ -82,6 +165,14 @@ describe("api service", () => {
           }),
           expect.objectContaining({
             id: "toolbox.upload_file",
+            status: "available"
+          }),
+          expect.objectContaining({
+            id: "toolbox.get_tool_security",
+            status: "available"
+          }),
+          expect.objectContaining({
+            id: "toolbox.create_approval",
             status: "available"
           })
         ])
@@ -147,6 +238,130 @@ describe("api service", () => {
       expect(body.data.plugin_id).toBe("json.basic");
       expect(body.data.result.data.formatted).toBe("{\n  \"name\": \"aitbx\"\n}");
       expect(body.data.usage.duration_ms).toEqual(expect.any(Number));
+    });
+  });
+
+  it("describes security policy and low risk tool security", async () => {
+    await withApp(async (app) => {
+      const policyResponse = await app.inject({
+        method: "GET",
+        url: "/v1/security/policy"
+      });
+      const policyBody = policyResponse.json();
+
+      expect(policyResponse.statusCode).toBe(200);
+      expect(policyBody.ok).toBe(true);
+      expect(policyBody.data.risk_levels).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            risk_level: "low",
+            approval_required: false
+          }),
+          expect.objectContaining({
+            risk_level: "high",
+            approval_required: true
+          })
+        ])
+      );
+
+      const securityResponse = await app.inject({
+        method: "GET",
+        url: "/v1/tools/json.format/security"
+      });
+      const securityBody = securityResponse.json();
+
+      expect(securityResponse.statusCode).toBe(200);
+      expect(securityBody.ok).toBe(true);
+      expect(securityBody.data).toMatchObject({
+        tool_name: "json.format",
+        plugin_id: "json.basic",
+        risk_level: "low",
+        approval_required: false
+      });
+      expect(securityBody.data.permissions.network).toBe(false);
+    });
+  });
+
+  it("requires and consumes approval tokens for high risk tools", async () => {
+    await withCustomApp(createApprovalRuntime(), async (app) => {
+      const blockedResponse = await app.inject({
+        method: "POST",
+        url: "/v1/tools/email.send_with_approval/run",
+        payload: {
+          input: {
+            to: "user@example.com",
+            body: "hello"
+          }
+        }
+      });
+      const blockedBody = blockedResponse.json();
+
+      expect(blockedResponse.statusCode).toBe(403);
+      expect(blockedBody.ok).toBe(false);
+      expect(blockedBody.error.code).toBe("APPROVAL_REQUIRED");
+      expect(blockedBody.error.details.security).toMatchObject({
+        tool_name: "email.send_with_approval",
+        approval_required: true
+      });
+
+      const approvalResponse = await app.inject({
+        method: "POST",
+        url: "/v1/approvals",
+        payload: {
+          tool_name: "email.send_with_approval",
+          reason: "User approved this email in the console."
+        }
+      });
+      const approvalBody = approvalResponse.json();
+
+      expect(approvalResponse.statusCode).toBe(201);
+      expect(approvalBody.ok).toBe(true);
+      expect(approvalBody.data.approval_token).toEqual(expect.stringMatching(/^apprtok_/));
+      expect(approvalBody.data.status).toBe("active");
+
+      const runResponse = await app.inject({
+        method: "POST",
+        url: "/v1/tools/email.send_with_approval/run",
+        payload: {
+          input: {
+            to: "user@example.com",
+            body: "hello"
+          },
+          approval_token: approvalBody.data.approval_token
+        }
+      });
+      const runBody = runResponse.json();
+
+      expect(runResponse.statusCode).toBe(200);
+      expect(runBody.ok).toBe(true);
+      expect(runBody.data.result.data.delivered).toBe(true);
+
+      const reuseResponse = await app.inject({
+        method: "POST",
+        url: "/v1/tools/email.send_with_approval/run",
+        payload: {
+          input: {
+            to: "user@example.com",
+            body: "hello"
+          },
+          approval_token: approvalBody.data.approval_token
+        }
+      });
+
+      expect(reuseResponse.statusCode).toBe(403);
+
+      const approvalsResponse = await app.inject({
+        method: "GET",
+        url: "/v1/approvals"
+      });
+      const approvalsBody = approvalsResponse.json();
+
+      expect(approvalsResponse.statusCode).toBe(200);
+      expect(approvalsBody.data.approvals[0]).toMatchObject({
+        tool_name: "email.send_with_approval",
+        status: "used"
+      });
+      expect(approvalsBody.data.approvals[0].approval_token).toBeUndefined();
     });
   });
 

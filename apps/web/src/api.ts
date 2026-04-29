@@ -39,6 +39,60 @@ export interface ToolSummary {
   plugin_id: string;
 }
 
+export interface ToolPermissions {
+  filesystem: string[];
+  network: boolean;
+  secrets: string[];
+  shell: boolean;
+  max_runtime_seconds: number;
+  max_memory_mb: number;
+}
+
+export interface ToolSecurityProfile {
+  tool_name: string;
+  plugin_id: string;
+  risk_level: "low" | "medium" | "high";
+  approval_required: boolean;
+  approval_reason: string;
+  permissions: ToolPermissions;
+  policy: {
+    decision: "allow" | "require_approval";
+    approval_ttl_seconds: number;
+  };
+}
+
+export interface SecurityPolicy {
+  approval_ttl_seconds: number;
+  risk_levels: Array<{
+    risk_level: "low" | "medium" | "high";
+    label: string;
+    description: string;
+    approval_required: boolean;
+  }>;
+  permission_types: Array<{
+    key: string;
+    label: string;
+    description: string;
+  }>;
+  rules: Array<{
+    id: string;
+    title: string;
+    description: string;
+  }>;
+}
+
+export interface ApprovalSummary {
+  approval_id: string;
+  tool_name: string;
+  plugin_id: string;
+  risk_level: "low" | "medium" | "high";
+  reason: string;
+  status: "active" | "used" | "expired";
+  created_at: string;
+  expires_at: string;
+  used_at?: string;
+}
+
 export interface ToolRunResponse {
   tool_name: string;
   plugin_id: string;
@@ -51,6 +105,12 @@ export interface ToolRunResponse {
     duration_ms: number;
     cost_usd: number;
   };
+}
+
+export interface ApprovalCreateResponse extends ApprovalSummary {
+  approval_required: boolean;
+  approval_token?: string;
+  message?: string;
 }
 
 export interface AuditCall {
@@ -146,13 +206,28 @@ export const api = {
       })
     }),
   plugins: () => request<{ plugins: PluginSummary[] }>("/v1/plugins"),
+  securityPolicy: () => request<SecurityPolicy>("/v1/security/policy"),
+  approvals: () => request<{ approvals: ApprovalSummary[] }>("/v1/approvals"),
+  createApproval: (toolName: string, reason?: string) =>
+    request<ApprovalCreateResponse>("/v1/approvals", {
+      method: "POST",
+      body: JSON.stringify({
+        tool_name: toolName,
+        ...(reason ? { reason } : {})
+      })
+    }),
   tools: (query = "") =>
     request<{ tools: ToolSummary[] }>(`/v1/tools/search?q=${encodeURIComponent(query)}`),
   tool: (name: string) => request<ToolSummary>(`/v1/tools/${encodeURIComponent(name)}`),
-  runTool: (name: string, input: Record<string, unknown>) =>
+  toolSecurity: (name: string) =>
+    request<ToolSecurityProfile>(`/v1/tools/${encodeURIComponent(name)}/security`),
+  runTool: (name: string, input: Record<string, unknown>, approvalToken?: string) =>
     request<ToolRunResponse>(`/v1/tools/${encodeURIComponent(name)}/run`, {
       method: "POST",
-      body: JSON.stringify({ input })
+      body: JSON.stringify({
+        input,
+        ...(approvalToken ? { approval_token: approvalToken } : {})
+      })
     }),
   auditCalls: () => request<{ calls: AuditCall[] }>("/v1/audit/calls")
 };
