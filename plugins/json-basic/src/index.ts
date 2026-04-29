@@ -75,9 +75,25 @@ const manifest: PluginManifest = {
         properties: {
           valid: {
             type: "boolean"
+          },
+          error: {
+            type: ["object", "null"],
+            properties: {
+              name: {
+                type: "string"
+              },
+              message: {
+                type: "string"
+              },
+              position: {
+                type: "integer"
+              }
+            },
+            required: ["name", "message"],
+            additionalProperties: false
           }
         },
-        required: ["valid"],
+        required: ["valid", "error"],
         additionalProperties: false
       }
     }
@@ -99,6 +115,17 @@ function failure(code: string, message: string): ToolResult {
   };
 }
 
+function parseJsonErrorDetails(error: unknown): Record<string, unknown> {
+  const message = error instanceof Error ? error.message : String(error);
+  const positionMatch = message.match(/position\s+(\d+)/i);
+
+  return {
+    name: error instanceof Error ? error.name : "SyntaxError",
+    message,
+    ...(positionMatch ? { position: Number(positionMatch[1]) } : {})
+  };
+}
+
 export const jsonBasicPlugin = definePlugin<ToolboxPlugin>({
   manifest,
   handlers: {
@@ -107,8 +134,27 @@ export const jsonBasicPlugin = definePlugin<ToolboxPlugin>({
         return failure("INVALID_INPUT", "Expected input.text to be a JSON string.");
       }
 
-      const indent = typeof input.indent === "number" ? input.indent : 2;
-      const parsed = JSON.parse(input.text);
+      const requestedIndent = input.indent;
+      if (
+        requestedIndent !== undefined &&
+        (typeof requestedIndent !== "number" ||
+          !Number.isInteger(requestedIndent) ||
+          requestedIndent < 0 ||
+          requestedIndent > 8)
+      ) {
+        return failure("INVALID_INPUT", "Expected input.indent to be an integer from 0 to 8.");
+      }
+
+      const indent = typeof requestedIndent === "number" ? requestedIndent : 2;
+      let parsed: unknown;
+
+      try {
+        parsed = JSON.parse(input.text);
+      } catch (error) {
+        const details = parseJsonErrorDetails(error);
+        return failure("INVALID_JSON", `Input text is not valid JSON: ${String(details.message)}`);
+      }
+
       const formatted = JSON.stringify(parsed, null, indent);
 
       return {
@@ -131,7 +177,25 @@ export const jsonBasicPlugin = definePlugin<ToolboxPlugin>({
         return failure("INVALID_INPUT", "Expected input.text to be a JSON string.");
       }
 
-      JSON.parse(input.text);
+      try {
+        JSON.parse(input.text);
+      } catch (error) {
+        return {
+          ok: true,
+          result: {
+            summary: "JSON is invalid.",
+            artifacts: [],
+            data: {
+              valid: false,
+              error: parseJsonErrorDetails(error)
+            }
+          },
+          usage: {
+            duration_ms: 0,
+            cost_usd: 0
+          }
+        };
+      }
 
       return {
         ok: true,
@@ -139,7 +203,8 @@ export const jsonBasicPlugin = definePlugin<ToolboxPlugin>({
           summary: "JSON is valid.",
           artifacts: [],
           data: {
-            valid: true
+            valid: true,
+            error: null
           }
         },
         usage: {

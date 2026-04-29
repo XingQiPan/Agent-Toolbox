@@ -1,0 +1,7 @@
+{
+  "tool": "json.format",
+  "input": {
+    "text": "{\"name\":\"aitbx\",\"tools\":[\"json.format\",\"json.validate\"]}",
+    "indent": 2
+  }
+}
