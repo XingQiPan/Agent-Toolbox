@@ -4,7 +4,8 @@
 
 ## 基线分支
 
-所有 Agent 分支从 `main` 的 Phase 0 基线提交创建。
+所有 Agent 分支从 `main` 的 Phase 0 基线提交创建。当前 Phase 0
+分支基线为同一提交，主控 Agent 合并前应确认各 worktree 状态干净。
 
 创建子任务前，主控 Agent 先执行：
 
@@ -124,6 +125,19 @@ worktree：
 - 检查文档与实际命令是否一致。
 - 汇总各 Agent 的验证结果。
 
+## 当前 Phase 0 Worktree 对照
+
+```text
+Agent A  E:/Codes/Agent-Toolbox-agent-core-phase-0-runtime     agent/core/phase-0-runtime
+Agent B  E:/Codes/Agent-Toolbox-agent-api-phase-0-service      agent/api/phase-0-service
+Agent C  E:/Codes/Agent-Toolbox-agent-cli-phase-0-json-plugin  agent/cli/phase-0-json-plugin
+Agent D  E:/Codes/Agent-Toolbox-agent-docs-phase-0-validation  agent/docs/phase-0-validation
+```
+
+Agent D 只修改 `docs/**` 和 `README.md`。验证命令和预期行为以
+`docs/PHASE_0_VALIDATION.md` 为准，主控 Agent 合并 A/C/B 后再用该清单做
+最终验收。
+
 ## 合并顺序
 
 推荐顺序：
@@ -154,10 +168,20 @@ Next steps:
 主控 Agent 合并后统一运行：
 
 ```powershell
-pnpm install
+pnpm install --frozen-lockfile
 pnpm build
 pnpm test
 pnpm --filter @agent-toolbox/cli dev -- plugin list
 pnpm --filter @agent-toolbox/cli dev -- tool search json
+pnpm --filter @agent-toolbox/cli dev -- tool info json.format
 pnpm --filter @agent-toolbox/cli dev -- tool run json.format --json '{"text":"{\"name\":\"aitbx\"}","indent":2}'
+pnpm --filter @agent-toolbox/cli dev -- tool run json.validate --json '{"text":"{\"name\":\"aitbx\"}"}'
+pnpm --filter @agent-toolbox/api dev
+```
+
+如果 `8787` 端口已被占用，API 验收可临时使用：
+
+```powershell
+$env:PORT = "18787"
+pnpm --filter @agent-toolbox/api dev
 ```
