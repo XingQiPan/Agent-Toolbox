@@ -1,0 +1,82 @@
+{
+  "schema_version": "0.1",
+  "id": "json.basic",
+  "name": "JSON Basic Tools",
+  "version": "0.1.0",
+  "description": "Format and validate JSON text.",
+  "runtime": {
+    "type": "builtin"
+  },
+  "permissions": {
+    "filesystem": [],
+    "network": false,
+    "secrets": [],
+    "shell": false,
+    "max_runtime_seconds": 5,
+    "max_memory_mb": 128
+  },
+  "tools": [
+    {
+      "name": "json.format",
+      "title": "Format JSON",
+      "description": "Parse JSON text and return pretty formatted JSON.",
+      "category": "json",
+      "risk_level": "low",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Raw JSON text."
+          },
+          "indent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8,
+            "description": "Number of spaces used for indentation."
+          }
+        },
+        "required": ["text"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "formatted": {
+            "type": "string"
+          }
+        },
+        "required": ["formatted"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "json.validate",
+      "title": "Validate JSON",
+      "description": "Check whether a text value is valid JSON.",
+      "category": "json",
+      "risk_level": "low",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Raw JSON text."
+          }
+        },
+        "required": ["text"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          }
+        },
+        "required": ["valid"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
