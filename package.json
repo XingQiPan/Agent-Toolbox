@@ -6,6 +6,8 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "build": "pnpm -r build",
+    "dev:api": "pnpm --filter @agent-toolbox/api dev",
+    "dev:web": "pnpm --filter @agent-toolbox/web dev",
     "test": "pnpm build && vitest run",
     "typecheck": "pnpm -r typecheck"
   },

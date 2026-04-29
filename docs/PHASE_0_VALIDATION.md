@@ -263,3 +263,27 @@ Phase 0 is valid when:
   network, secret, or shell permissions.
 - Runtime tool calls return structured results with `summary`, `artifacts`,
   `data`, and `usage`.
+
+## Web Validation
+
+Start the API first. If port `8787` is occupied, use the same fallback port used
+by the Web proxy:
+
+```powershell
+$env:PORT = "18788"
+pnpm --filter @agent-toolbox/api dev
+```
+
+Start the Web console:
+
+```powershell
+pnpm --filter @agent-toolbox/web dev
+```
+
+Expected behavior:
+
+- Vite serves the console on `http://127.0.0.1:5173` or the next available port.
+- The console shows API status as connected.
+- The dashboard shows plugin, tool, and audit counts.
+- Selecting `json.format` shows its input schema and editable JSON input.
+- Running the tool displays the formatted JSON result and appends an audit call.

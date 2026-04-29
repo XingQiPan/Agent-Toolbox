@@ -47,8 +47,9 @@ docs/
 5. 实现 `json-basic` 示例插件。
 6. 实现 Fastify API 的工具搜索、详情、执行、插件列表接口。
 7. 实现 Commander CLI 的工具搜索、详情、执行、插件列表命令。
-8. 增加最小测试覆盖。
-9. 写清多 Agent worktree 分工和汇报格式。
+8. 实现 Web 控制台，支持查看插件、搜索工具、执行 JSON 工具和查看审计日志。
+9. 增加最小测试覆盖。
+10. 写清多 Agent worktree 分工和汇报格式。
 
 ## 暂不做
 
@@ -70,6 +71,7 @@ pnpm --filter @agent-toolbox/cli dev -- plugin list
 pnpm --filter @agent-toolbox/cli dev -- tool search json
 pnpm --filter @agent-toolbox/cli dev -- tool info json.format
 pnpm --filter @agent-toolbox/cli dev -- tool run json.format --json '{"text":"{\"name\":\"aitbx\"}","indent":2}'
+pnpm --filter @agent-toolbox/web dev
 ```
 
 API 验收：
@@ -94,5 +96,6 @@ Phase 0 完成时，仓库应该具备以下能力：
 
 - 新开发者可以通过 `pnpm install` 和 `pnpm build` 启动工程。
 - AI Agent 可以通过 CLI 或 API 找到并执行示例工具。
+- 人类用户可以通过 Web 控制台操作示例工具。
 - 后续 Agent 可以围绕 Core、API、CLI、Plugin SDK 分支并行开发。
 - 所有改动可通过 Git worktree 独立隔离和合并。
