@@ -287,3 +287,6 @@ Expected behavior:
 - The dashboard shows plugin, tool, and audit counts.
 - Selecting `json.format` shows its input schema and editable JSON input.
 - Running the tool displays the formatted JSON result and appends an audit call.
+- The top navigation switches between tool gallery, runner, plugins, and audit.
+- Local browser tools such as Base64, URL encoding, timestamp conversion, UUID,
+  naming conversion, and color conversion can run without API calls.
