@@ -72,9 +72,25 @@
         "properties": {
           "valid": {
             "type": "boolean"
+          },
+          "error": {
+            "type": ["object", "null"],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "position": {
+                "type": "integer"
+              }
+            },
+            "required": ["name", "message"],
+            "additionalProperties": false
           }
         },
-        "required": ["valid"],
+        "required": ["valid", "error"],
         "additionalProperties": false
       }
     }

@@ -1,0 +1,6 @@
+{
+  "tool": "json.validate",
+  "input": {
+    "text": "{\"name\":\"aitbx\",}"
+  }
+}
