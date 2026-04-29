@@ -1,27 +1,56 @@
 import {
   Activity,
+  BarChart3,
+  Bot,
+  Box,
   Braces,
+  Building2,
+  CalendarDays,
   CheckCircle2,
+  CloudSun,
+  Code2,
+  Coins,
   Copy,
   Database,
   Download,
+  Droplets,
+  FileImage,
   FileJson2,
+  FileText,
+  Fuel,
+  Hash,
+  Headphones,
   Home,
   Image,
+  Link2,
+  List,
+  LockKeyhole,
+  MapPin,
+  Music,
+  Newspaper,
+  Paintbrush,
+  Palette,
   Play,
+  Plus,
+  QrCode,
   RefreshCcw,
   Search,
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
-  UploadCloud
+  Sun,
+  Type,
+  UploadCloud,
+  UserRound,
+  Video
 } from "lucide-react";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api, type AuditCall, type PluginSummary, type ToolRunResponse, type ToolSummary } from "./api.js";
 
 type PageId = "home" | "image-compress" | "regex-collection" | "json-tools" | "audit";
 type ImageFormat = "image/jpeg" | "image/png" | "image/webp";
+type AppIcon = typeof Home;
 
 interface LocalHistoryItem {
   id: string;
@@ -51,34 +80,184 @@ interface RegexRecipe {
   description: string;
 }
 
-const pages: Array<{ id: PageId; label: string; icon: typeof Home }> = [
-  { id: "home", label: "首页", icon: Home },
-  { id: "image-compress", label: "图片压缩", icon: Image },
-  { id: "regex-collection", label: "正则大全", icon: Braces },
-  { id: "json-tools", label: "JSON 工具", icon: FileJson2 },
-  { id: "audit", label: "审计", icon: Activity }
+interface HomeTool {
+  title: string;
+  description: string;
+  icon: AppIcon;
+  page?: PageId;
+  apiTool?: string;
+  planned?: boolean;
+}
+
+interface HomeSection {
+  title: string;
+  tools: HomeTool[];
+}
+
+const pages: Array<{ id: PageId; label: string }> = [
+  { id: "home", label: "首页" },
+  { id: "image-compress", label: "图片压缩" },
+  { id: "regex-collection", label: "正则大全" },
+  { id: "json-tools", label: "JSON 工具" },
+  { id: "audit", label: "审计" }
 ];
 
-const toolGroups = [
+const sidebarItems: Array<{ label: string; icon: AppIcon }> = [
+  { label: "首页", icon: Home },
+  { label: "日常应用", icon: Sun },
+  { label: "查询应用", icon: Search },
+  { label: "文档应用", icon: FileText },
+  { label: "智能应用", icon: Bot },
+  { label: "图片应用", icon: Image },
+  { label: "音频应用", icon: Headphones },
+  { label: "视频应用", icon: Video },
+  { label: "文字应用", icon: Type },
+  { label: "加密应用", icon: LockKeyhole },
+  { label: "单位转换", icon: Coins },
+  { label: "生活应用", icon: Droplets }
+];
+
+const apiExamples: Record<string, string> = {
+  "json.format": JSON.stringify({ text: "{\"name\":\"aitbx\"}", indent: 2 }, null, 2),
+  "json.validate": JSON.stringify({ text: "{\"name\":\"aitbx\"}" }, null, 2)
+};
+
+const pinnedTools: HomeTool[] = [
   {
-    title: "图片处理",
-    items: ["图片压缩", "格式转换", "图片裁剪", "图片转 Base64", "图片转 PDF"],
-    accent: "cyan"
+    title: "图片压缩",
+    description: "上传图片，本地压缩并下载",
+    icon: Image,
+    page: "image-compress"
   },
   {
-    title: "开发工具",
-    items: ["正则大全", "JSON 格式化", "JSON 验证", "Base64", "URL 编码", "UUID 生成"],
-    accent: "blue"
+    title: "正则大全",
+    description: "常用正则查询、复制和测试",
+    icon: Braces,
+    page: "regex-collection"
   },
   {
-    title: "文档工具",
-    items: ["PDF 合并", "PDF 压缩", "PDF 转图片", "Word 转 PDF", "Markdown 转换"],
-    accent: "violet"
+    title: "JSON 格式化",
+    description: "通过 Runtime 格式化 JSON",
+    icon: FileJson2,
+    page: "json-tools",
+    apiTool: "json.format"
   },
   {
-    title: "日常工具",
-    items: ["二维码生成", "时间戳转换", "单位转换", "颜色转换", "文本统计"],
-    accent: "green"
+    title: "添加功能",
+    description: "后续接入插件市场和收藏",
+    icon: Plus,
+    planned: true
+  }
+];
+
+const homeSections: HomeSection[] = [
+  {
+    title: "日常应用",
+    tools: [
+      { title: "调用审计", description: "查看工具调用记录", icon: Activity, page: "audit" },
+      { title: "JSON 验证", description: "检查 JSON 是否合法", icon: CheckCircle2, page: "json-tools", apiTool: "json.validate" },
+      { title: "二维码生成", description: "输入文本生成二维码", icon: QrCode, planned: true },
+      { title: "今日黄金价格", description: "实时查看黄金价格行情", icon: Coins, planned: true },
+      { title: "今日电影票房榜", description: "查看电影票房排行", icon: Video, planned: true },
+      { title: "全国油价查询", description: "查询全国最新油价信息", icon: Fuel, planned: true },
+      { title: "配色大全", description: "提供丰富的配色方案", icon: Palette, planned: true },
+      { title: "万年历", description: "查询公历、农历、节气信息", icon: CalendarDays, planned: true },
+      { title: "天气预报", description: "查看天气预报", icon: CloudSun, planned: true },
+      { title: "每日早报", description: "每日新闻早报", icon: Newspaper, planned: true }
+    ]
+  },
+  {
+    title: "查询应用",
+    tools: [
+      { title: "企业查询", description: "查询企业工商信息", icon: Building2, planned: true },
+      { title: "归属地查询", description: "查询手机号、IP 地址归属地", icon: MapPin, planned: true },
+      { title: "邮编查询", description: "查询全国邮政编码", icon: Hash, planned: true },
+      { title: "经纬度查询", description: "根据经纬度查询地理位置", icon: MapPin, planned: true },
+      { title: "世界时间", description: "全球主要城市时间查询", icon: CalendarDays, planned: true },
+      { title: "汇率查询", description: "常用币种汇率换算", icon: Coins, planned: true },
+      { title: "IP 查询", description: "查询 IP 信息", icon: Search, planned: true },
+      { title: "域名查询", description: "查看域名基础信息", icon: Link2, planned: true }
+    ]
+  },
+  {
+    title: "文档应用",
+    tools: [
+      { title: "PDF 合并", description: "合并多个 PDF 文件", icon: FileText, planned: true },
+      { title: "PDF 压缩", description: "减小 PDF 文件体积", icon: FileText, planned: true },
+      { title: "PDF 转图片", description: "把 PDF 页面导出为图片", icon: FileImage, planned: true },
+      { title: "Word 转 PDF", description: "转换文档格式", icon: FileText, planned: true },
+      { title: "Markdown 转换", description: "转换 Markdown 内容", icon: Code2, planned: true }
+    ]
+  },
+  {
+    title: "智能应用",
+    tools: [
+      { title: "JSON 格式化", description: "格式化 JSON 文本", icon: FileJson2, page: "json-tools", apiTool: "json.format" },
+      { title: "JSON 验证", description: "验证 JSON 文本", icon: CheckCircle2, page: "json-tools", apiTool: "json.validate" },
+      { title: "Agent 调用审计", description: "查看 API 和本地工具调用", icon: Database, page: "audit" },
+      { title: "工具搜索", description: "按能力搜索工具", icon: Search, planned: true },
+      { title: "插件市场", description: "安装和管理插件", icon: Box, planned: true }
+    ]
+  },
+  {
+    title: "图片应用",
+    tools: [
+      { title: "图片压缩", description: "压缩图片并下载", icon: Image, page: "image-compress" },
+      { title: "图片格式转换", description: "JPG、PNG、WebP 互转", icon: FileImage, planned: true },
+      { title: "图片裁剪", description: "裁剪图片尺寸", icon: Image, planned: true },
+      { title: "图片转 Base64", description: "转换图片为 Base64", icon: Hash, planned: true },
+      { title: "图片转 PDF", description: "多张图片生成 PDF", icon: FileText, planned: true }
+    ]
+  },
+  {
+    title: "音频应用",
+    tools: [
+      { title: "视频提取音频", description: "提取视频中的音频", icon: Music, planned: true },
+      { title: "音频格式转换", description: "常见音频格式互转", icon: Headphones, planned: true },
+      { title: "音频压缩", description: "降低音频文件体积", icon: Headphones, planned: true }
+    ]
+  },
+  {
+    title: "视频应用",
+    tools: [
+      { title: "视频压缩", description: "降低视频文件体积", icon: Video, planned: true },
+      { title: "视频转 GIF", description: "截取视频生成 GIF", icon: Video, planned: true },
+      { title: "视频提取音频", description: "从视频中分离音频", icon: Music, planned: true }
+    ]
+  },
+  {
+    title: "文字应用",
+    tools: [
+      { title: "正则大全", description: "搜索、编辑并测试正则", icon: Braces, page: "regex-collection" },
+      { title: "文本统计", description: "统计字数、行数和字符数", icon: BarChart3, planned: true },
+      { title: "URL 编码", description: "URL 编码和解码", icon: Link2, planned: true },
+      { title: "Base64", description: "Base64 编码和解码", icon: Hash, planned: true },
+      { title: "命名转换", description: "camelCase、snake_case 互转", icon: Code2, planned: true }
+    ]
+  },
+  {
+    title: "加密应用",
+    tools: [
+      { title: "哈希计算", description: "计算文本摘要", icon: ShieldCheck, planned: true },
+      { title: "JWT 解码", description: "解析 JWT 内容", icon: LockKeyhole, planned: true },
+      { title: "密码生成", description: "生成安全随机密码", icon: LockKeyhole, planned: true }
+    ]
+  },
+  {
+    title: "单位转换",
+    tools: [
+      { title: "长度转换", description: "常用长度单位换算", icon: Coins, planned: true },
+      { title: "重量转换", description: "常用重量单位换算", icon: Coins, planned: true },
+      { title: "时间戳转换", description: "时间戳和日期互转", icon: CalendarDays, planned: true }
+    ]
+  },
+  {
+    title: "生活应用",
+    tools: [
+      { title: "天气预报", description: "查看城市天气", icon: CloudSun, planned: true },
+      { title: "配色大全", description: "浏览配色方案", icon: Paintbrush, planned: true },
+      { title: "世界时间", description: "全球城市时间查询", icon: CalendarDays, planned: true }
+    ]
   }
 ];
 
@@ -157,18 +336,6 @@ const regexRecipes: RegexRecipe[] = [
   }
 ];
 
-const apiExamples: Record<string, string> = {
-  "json.format": JSON.stringify({ text: "{\"name\":\"aitbx\"}", indent: 2 }, null, 2),
-  "json.validate": JSON.stringify({ text: "{\"name\":\"aitbx\"}" }, null, 2)
-};
-
-const homeToolRoutes: Record<string, PageId> = {
-  图片压缩: "image-compress",
-  正则大全: "regex-collection",
-  "JSON 格式化": "json-tools",
-  "JSON 验证": "json-tools"
-};
-
 function pretty(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
@@ -201,8 +368,23 @@ function pageFromLocation(): PageId {
   return "home";
 }
 
+function pageCategory(page: PageId, homeCategory: string): string {
+  if (page === "home") return homeCategory;
+  if (page === "image-compress") return "图片应用";
+  if (page === "regex-collection") return "文字应用";
+  if (page === "json-tools" || page === "audit") return "智能应用";
+  return "首页";
+}
+
+function toolMatches(tool: HomeTool, query: string, sectionTitle: string): boolean {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  return `${sectionTitle} ${tool.title} ${tool.description}`.toLowerCase().includes(normalized);
+}
+
 export function App() {
   const [activePage, setActivePage] = useState<PageId>(() => pageFromLocation());
+  const [homeCategory, setHomeCategory] = useState("首页");
   const [health, setHealth] = useState<"checking" | "ok" | "error">("checking");
   const [plugins, setPlugins] = useState<PluginSummary[]>([]);
   const [apiTools, setApiTools] = useState<ToolSummary[]>([]);
@@ -242,16 +424,19 @@ export function App() {
     () => apiTools.find((tool) => tool.name === selectedApiTool),
     [apiTools, selectedApiTool]
   );
-  const filteredHomeGroups = useMemo(() => {
-    const normalized = search.trim().toLowerCase();
-    if (!normalized) return toolGroups;
-    return toolGroups
-      .map((group) => ({
-        ...group,
-        items: group.items.filter((item) => `${group.title} ${item}`.toLowerCase().includes(normalized))
+  const visiblePinnedTools = useMemo(() => {
+    if (homeCategory !== "首页") return [];
+    return pinnedTools.filter((tool) => toolMatches(tool, search, "首页"));
+  }, [homeCategory, search]);
+  const visibleHomeSections = useMemo(() => {
+    const sections = homeCategory === "首页" ? homeSections : homeSections.filter((section) => section.title === homeCategory);
+    return sections
+      .map((section) => ({
+        ...section,
+        tools: section.tools.filter((tool) => toolMatches(tool, search, section.title))
       }))
-      .filter((group) => group.items.length > 0);
-  }, [search]);
+      .filter((section) => section.tools.length > 0);
+  }, [homeCategory, search]);
   const filteredRegexRecipes = useMemo(() => {
     const normalized = regexSearch.trim().toLowerCase();
     if (!normalized) return regexRecipes;
@@ -271,6 +456,10 @@ export function App() {
       return [];
     }
   }, [regexFlags, regexPattern, regexText]);
+
+  const totalAuditCount = auditCalls.length + localHistory.length;
+  const totalToolCount = pinnedTools.length + homeSections.reduce((count, section) => count + section.tools.length, 0);
+  const activeCategory = pageCategory(activePage, homeCategory);
 
   async function refresh() {
     setError(null);
@@ -327,17 +516,25 @@ export function App() {
     }
   }
 
-  function openToolByName(name: string) {
-    if (name === "JSON 验证") {
-      setSelectedApiTool("json.validate");
-      setJsonInput(apiExamples["json.validate"]);
-    } else if (name === "JSON 格式化") {
-      setSelectedApiTool("json.format");
-      setJsonInput(apiExamples["json.format"]);
-    }
+  function selectSidebar(label: string) {
+    setHomeCategory(label);
+    navigate("home");
+  }
 
-    const route = homeToolRoutes[name];
-    if (route) navigate(route);
+  function openHomeTool(tool: HomeTool) {
+    if (tool.planned || !tool.page) return;
+    if (tool.apiTool) {
+      setSelectedApiTool(tool.apiTool);
+      setJsonInput(apiExamples[tool.apiTool] ?? "{}");
+      setJsonResult(null);
+    }
+    navigate(tool.page);
+  }
+
+  function handleHeaderSearch(value: string) {
+    setSearch(value);
+    setHomeCategory("首页");
+    if (activePage !== "home") navigate("home");
   }
 
   async function runJsonTool() {
@@ -447,362 +644,389 @@ export function App() {
     setCopied(false);
   }
 
-  const totalAuditCount = auditCalls.length + localHistory.length;
-
   return (
     <div className="app-shell">
       <header className="app-header">
-        <button type="button" className="brand" onClick={() => navigate("home")}>
+        <button type="button" className="brand" onClick={() => selectSidebar("首页")}>
           <span className="brand-mark">
-            <Sparkles size={22} />
+            <Box size={21} />
           </span>
-          <span>
-            <strong>Agent Toolbox</strong>
-            <small>AI 工具箱 · 人也能直接操作</small>
-          </span>
+          <strong>Agent 工具箱</strong>
         </button>
 
-        <nav className="top-nav" aria-label="主导航">
-          {pages.map((page) => (
-            <button
-              key={page.id}
-              type="button"
-              className={activePage === page.id ? "active" : ""}
-              onClick={() => navigate(page.id)}
-            >
-              <page.icon size={17} />
-              <span>{page.label}</span>
-            </button>
-          ))}
-        </nav>
+        <div className="top-meta">
+          <span>Agent Runtime · 本地运行</span>
+          <button type="button" className="function-list" onClick={() => selectSidebar("首页")}>
+            <List size={15} />
+            功能列表
+          </button>
+        </div>
 
-        <button type="button" className="refresh-button" onClick={refresh} title="刷新 API">
-          <RefreshCcw size={18} />
-        </button>
+        <div className="top-actions">
+          <label className="top-search">
+            <Search size={18} />
+            <input
+              value={search}
+              onChange={(event) => handleHeaderSearch(event.target.value)}
+              onFocus={() => {
+                setHomeCategory("首页");
+                if (activePage !== "home") navigate("home");
+              }}
+              placeholder={`搜索${totalToolCount}项功能`}
+            />
+          </label>
+          <button type="button" className="icon-button" title="刷新 API" onClick={refresh}>
+            <RefreshCcw size={18} />
+          </button>
+          <button type="button" className="icon-button" title="筛选">
+            <SlidersHorizontal size={18} />
+          </button>
+          <button type="button" className="login-button">
+            <UserRound size={15} />
+            登录
+          </button>
+        </div>
       </header>
 
-      <main className="workspace">
-        {error ? (
-          <section className="notice" role="alert">
-            <Settings2 size={18} />
-            <span>{error}</span>
-          </section>
-        ) : null}
+      <div className="app-layout">
+        <aside className="sidebar">
+          {sidebarItems.map((item) => (
+            <button
+              type="button"
+              key={item.label}
+              className={activeCategory === item.label ? "active" : ""}
+              onClick={() => selectSidebar(item.label)}
+            >
+              <item.icon size={21} />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </aside>
 
-        {activePage === "home" ? (
-          <section className="home-page">
-            <div className="hero">
-              <div>
-                <p className="eyebrow">参考 MagicalBox 的在线工具操作体验</p>
-                <h1>像工具箱一样打开即用，像 Agent Runtime 一样可编排</h1>
-                <p>
-                  首页提供搜索、分类和工具卡片；具体工具页提供上传、参数、预览、复制、下载等真实操作。
-                </p>
-              </div>
-              <div className="status-card">
-                <span className={`status-dot ${health}`} />
-                <strong>{health === "ok" ? "API 已连接" : health === "checking" ? "检查 API 中" : "API 未连接"}</strong>
-                <small>本地图片压缩和正则工具无需 API</small>
-              </div>
-            </div>
+        <main className="workspace">
+          {error ? (
+            <section className="notice" role="alert">
+              <Settings2 size={18} />
+              <span>{error}</span>
+            </section>
+          ) : null}
 
-            <div className="home-search">
-              <Search size={20} />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索图片压缩、正则、JSON、PDF、二维码..." />
-            </div>
+          {activePage === "home" ? (
+            <section className="home-page">
+              <div className="content-toolbar">
+                <h1>{homeCategory}</h1>
+                <button type="button" className="ghost-tool">
+                  <List size={18} />
+                  <Sparkles size={14} />
+                </button>
+              </div>
 
-            <div className="stats-grid">
-              <div>
-                <strong>{plugins.length}</strong>
-                <span>已注册插件</span>
-              </div>
-              <div>
-                <strong>{apiTools.length + 2}</strong>
-                <span>可操作工具</span>
-              </div>
-              <div>
-                <strong>{totalAuditCount}</strong>
-                <span>调用记录</span>
-              </div>
-            </div>
+              {visiblePinnedTools.length > 0 ? (
+                <section className="pinned-grid" aria-label="常用功能">
+                  {visiblePinnedTools.map((tool) => (
+                    <button
+                      type="button"
+                      key={tool.title}
+                      className={`tool-tile ${tool.planned ? "planned" : ""}`}
+                      disabled={tool.planned}
+                      onClick={() => openHomeTool(tool)}
+                    >
+                      <tool.icon size={23} />
+                      <strong>{tool.title}</strong>
+                      <span>{tool.description}</span>
+                    </button>
+                  ))}
+                </section>
+              ) : null}
 
-            <div className="group-grid">
-              {filteredHomeGroups.map((group) => (
-                <article className={`tool-group ${group.accent}`} key={group.title}>
-                  <h2>{group.title}</h2>
-                  <div className="group-items">
-                    {group.items.map((item) => {
-                      const isRunnable = Boolean(homeToolRoutes[item]);
-                      return (
-                        <button
-                          type="button"
-                          key={item}
-                          className={isRunnable ? "runnable" : "planned"}
-                          disabled={!isRunnable}
-                          onClick={() => openToolByName(item)}
-                        >
-                          <span>{item}</span>
-                          <small>{isRunnable ? "可使用" : "规划中"}</small>
-                        </button>
-                      );
-                    })}
+              <div className="stats-strip">
+                <span>插件 {plugins.length}</span>
+                <span>API 工具 {apiTools.length}</span>
+                <span>调用 {totalAuditCount}</span>
+                <span className={health === "ok" ? "ok" : health === "error" ? "error" : ""}>
+                  {health === "ok" ? "API 已连接" : health === "checking" ? "API 检查中" : "API 未连接"}
+                </span>
+              </div>
+
+              {visibleHomeSections.map((section) => (
+                <section className="tool-section" key={section.title}>
+                  <h2>{section.title}</h2>
+                  <div className="tool-card-grid">
+                    {section.tools.map((tool) => (
+                      <button
+                        type="button"
+                        key={`${section.title}-${tool.title}`}
+                        className={`tool-tile ${tool.planned ? "planned" : ""}`}
+                        disabled={tool.planned}
+                        onClick={() => openHomeTool(tool)}
+                      >
+                        <tool.icon size={23} />
+                        <strong>{tool.title}</strong>
+                        <span>{tool.description}</span>
+                      </button>
+                    ))}
                   </div>
-                </article>
+                </section>
               ))}
-            </div>
-          </section>
-        ) : null}
+            </section>
+          ) : null}
 
-        {activePage === "image-compress" ? (
-          <section className="tool-page image-page">
-            <div className="page-title">
-              <div>
-                <p className="eyebrow">Image Compress</p>
-                <h1>图片压缩</h1>
-                <p>上传图片后在浏览器本地压缩，支持质量、最大宽高、输出格式和下载。</p>
-              </div>
-              <ShieldCheck size={26} />
-            </div>
-
-            <div className="image-workbench">
-              <div className="upload-panel">
-                <button type="button" className="upload-box" onClick={() => imageInputRef.current?.click()}>
-                  <UploadCloud size={34} />
-                  <strong>{sourceImage ? sourceImage.name : "点击上传图片"}</strong>
-                  <span>支持 JPG、PNG、WebP 等浏览器可读取格式</span>
-                </button>
-                <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageChange} hidden />
-
-                <div className="control-grid">
-                  <label>
-                    <span>压缩质量：{quality}%</span>
-                    <input type="range" min="1" max="100" value={quality} onChange={(event) => setQuality(Number(event.target.value))} />
-                  </label>
-                  <label>
-                    <span>最大宽度</span>
-                    <input type="number" min="1" value={maxWidth} onChange={(event) => setMaxWidth(Number(event.target.value) || 1)} />
-                  </label>
-                  <label>
-                    <span>最大高度</span>
-                    <input type="number" min="1" value={maxHeight} onChange={(event) => setMaxHeight(Number(event.target.value) || 1)} />
-                  </label>
-                  <label>
-                    <span>输出格式</span>
-                    <select value={format} onChange={(event) => setFormat(event.target.value as ImageFormat)}>
-                      <option value="image/jpeg">JPG</option>
-                      <option value="image/png">PNG</option>
-                      <option value="image/webp">WebP</option>
-                    </select>
-                  </label>
+          {activePage === "image-compress" ? (
+            <section className="tool-page image-page">
+              <div className="page-title">
+                <div>
+                  <p className="eyebrow">图片应用</p>
+                  <h1>图片压缩</h1>
+                  <p>上传图片后在浏览器本地压缩，支持质量、最大宽高、输出格式和下载。</p>
                 </div>
-
-                <button type="button" className="primary-action" onClick={compressImage} disabled={!sourceImage || isCompressing}>
-                  <SlidersHorizontal size={18} />
-                  {isCompressing ? "压缩中..." : "开始压缩"}
-                </button>
+                <ShieldCheck size={24} />
               </div>
 
-              <div className="preview-panel">
-                <div className="preview-card">
-                  <h2>原图</h2>
-                  {sourcePreview ? <img src={sourcePreview} alt="原图预览" /> : <div className="empty-preview">等待上传</div>}
-                  <div className="info-list">
-                    <span>大小：{sourceImage ? formatBytes(sourceImage.size) : "-"}</span>
-                    <span>尺寸：{sourceSize ? `${sourceSize.width} x ${sourceSize.height}` : "-"}</span>
-                  </div>
-                </div>
-
-                <div className="preview-card">
-                  <h2>压缩后</h2>
-                  {compressedImage ? <img src={compressedImage.url} alt="压缩后预览" /> : <div className="empty-preview">等待压缩</div>}
-                  <div className="info-list">
-                    <span>大小：{compressedImage ? formatBytes(compressedImage.size) : "-"}</span>
-                    <span>尺寸：{compressedImage ? `${compressedImage.width} x ${compressedImage.height}` : "-"}</span>
-                    <span>
-                      节省：
-                      {sourceImage && compressedImage
-                        ? `${Math.max(0, 100 - (compressedImage.size / sourceImage.size) * 100).toFixed(1)}%`
-                        : "-"}
-                    </span>
-                  </div>
-                  {compressedImage ? (
-                    <a className="download-button" href={compressedImage.url} download={compressedImage.name}>
-                      <Download size={18} />
-                      下载图片
-                    </a>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </section>
-        ) : null}
-
-        {activePage === "regex-collection" ? (
-          <section className="tool-page regex-page">
-            <div className="page-title">
-              <div>
-                <p className="eyebrow">Regex Collection</p>
-                <h1>正则大全</h1>
-                <p>搜索常用正则，复制表达式，并直接用测试文本验证匹配结果。</p>
-              </div>
-              <Braces size={28} />
-            </div>
-
-            <div className="regex-layout">
-              <aside className="regex-list">
-                <div className="mini-search">
-                  <Search size={17} />
-                  <input value={regexSearch} onChange={(event) => setRegexSearch(event.target.value)} placeholder="搜索邮箱、手机号、URL..." />
-                </div>
-                {filteredRegexRecipes.map((recipe) => (
-                  <button
-                    type="button"
-                    key={recipe.id}
-                    className={recipe.id === selectedRegexId ? "active" : ""}
-                    onClick={() => selectRegex(recipe)}
-                  >
-                    <strong>{recipe.title}</strong>
-                    <span>{recipe.category}</span>
+              <div className="image-workbench">
+                <div className="upload-panel">
+                  <button type="button" className="upload-box" onClick={() => imageInputRef.current?.click()}>
+                    <UploadCloud size={32} />
+                    <strong>{sourceImage ? sourceImage.name : "点击上传图片"}</strong>
+                    <span>支持 JPG、PNG、WebP 等浏览器可读取格式</span>
                   </button>
-                ))}
-              </aside>
+                  <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageChange} hidden />
 
-              <div className="regex-detail">
-                <div className="regex-header">
-                  <div>
-                    <h2>{selectedRegex.title}</h2>
-                    <p>{selectedRegex.description}</p>
+                  <div className="control-grid">
+                    <label>
+                      <span>压缩质量：{quality}%</span>
+                      <input type="range" min="1" max="100" value={quality} onChange={(event) => setQuality(Number(event.target.value))} />
+                    </label>
+                    <label>
+                      <span>最大宽度</span>
+                      <input type="number" min="1" value={maxWidth} onChange={(event) => setMaxWidth(Number(event.target.value) || 1)} />
+                    </label>
+                    <label>
+                      <span>最大高度</span>
+                      <input type="number" min="1" value={maxHeight} onChange={(event) => setMaxHeight(Number(event.target.value) || 1)} />
+                    </label>
+                    <label>
+                      <span>输出格式</span>
+                      <select value={format} onChange={(event) => setFormat(event.target.value as ImageFormat)}>
+                        <option value="image/jpeg">JPG</option>
+                        <option value="image/png">PNG</option>
+                        <option value="image/webp">WebP</option>
+                      </select>
+                    </label>
                   </div>
-                  <button type="button" className="copy-button" onClick={copyRegex}>
-                    <Copy size={17} />
-                    {copied ? "已复制" : "复制"}
+
+                  <button type="button" className="primary-action" onClick={compressImage} disabled={!sourceImage || isCompressing}>
+                    <SlidersHorizontal size={18} />
+                    {isCompressing ? "压缩中..." : "开始压缩"}
                   </button>
                 </div>
 
-                <label className="pattern-box">
-                  <span>正则表达式</span>
-                  <input value={regexPattern} onChange={(event) => setRegexPattern(event.target.value)} />
-                </label>
-
-                <label className="pattern-box short">
-                  <span>Flags</span>
-                  <input value={regexFlags} onChange={(event) => setRegexFlags(event.target.value)} />
-                </label>
-
-                <label className="test-area">
-                  <span>测试文本</span>
-                  <textarea value={regexText} onChange={(event) => setRegexText(event.target.value)} />
-                </label>
-
-                <div className="match-panel">
-                  <h3>匹配结果：{regexMatches.length}</h3>
-                  {regexMatches.length > 0 ? (
-                    regexMatches.map((match, index) => (
-                      <div className="match-row" key={`${match.value}-${match.index}-${index}`}>
-                        <strong>{match.value}</strong>
-                        <span>index {match.index}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="empty-preview">暂无匹配</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-        ) : null}
-
-        {activePage === "json-tools" ? (
-          <section className="tool-page json-page">
-            <div className="page-title">
-              <div>
-                <p className="eyebrow">API Tools</p>
-                <h1>JSON 工具</h1>
-                <p>这里使用后端 Runtime 执行工具，会记录审计日志。</p>
-              </div>
-              <FileJson2 size={28} />
-            </div>
-
-            <div className="json-layout">
-              <div className="json-tools">
-                {apiTools.map((tool) => (
-                  <button
-                    type="button"
-                    key={tool.name}
-                    className={tool.name === selectedApiTool ? "active" : ""}
-                    onClick={() => {
-                      setSelectedApiTool(tool.name);
-                      setJsonInput(apiExamples[tool.name] ?? "{}");
-                      setJsonResult(null);
-                    }}
-                  >
-                    <strong>{tool.title}</strong>
-                    <span>{tool.description}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="json-runner">
-                {selectedTool ? (
-                  <div className="tool-note">
-                    <strong>{selectedTool.title}</strong>
-                    <span>{selectedTool.description}</span>
-                  </div>
-                ) : null}
-                <label>
-                  <span>输入 JSON</span>
-                  <textarea value={jsonInput} onChange={(event) => setJsonInput(event.target.value)} />
-                </label>
-                <button type="button" className="primary-action" onClick={runJsonTool} disabled={isJsonRunning}>
-                  <Play size={18} />
-                  {isJsonRunning ? "执行中..." : "运行工具"}
-                </button>
-              </div>
-
-              <pre className="result-view">{jsonResult ? pretty(jsonResult) : "等待执行..."}</pre>
-            </div>
-          </section>
-        ) : null}
-
-        {activePage === "audit" ? (
-          <section className="tool-page audit-page">
-            <div className="page-title">
-              <div>
-                <p className="eyebrow">Audit</p>
-                <h1>调用审计</h1>
-                <p>展示 API 工具和浏览器本地工具的最近调用。</p>
-              </div>
-              <Database size={28} />
-            </div>
-
-            <div className="audit-list">
-              {[...auditCalls.map((call) => ({
-                id: call.id,
-                tool_name: call.tool_name,
-                source: "api",
-                status: call.status,
-                duration_ms: call.duration_ms,
-                created_at: call.created_at
-              })), ...localHistory]
-                .slice()
-                .reverse()
-                .map((call) => (
-                  <div className="audit-row" key={call.id}>
-                    <span className={`status-dot ${call.status === "success" ? "ok" : "error"}`} />
-                    <div>
-                      <strong>{call.tool_name}</strong>
-                      <small>
-                        {call.source} · {call.status} · {call.duration_ms}ms · {new Date(call.created_at).toLocaleString()}
-                      </small>
+                <div className="preview-panel">
+                  <div className="preview-card">
+                    <h2>原图</h2>
+                    {sourcePreview ? <img src={sourcePreview} alt="原图预览" /> : <div className="empty-preview">等待上传</div>}
+                    <div className="info-list">
+                      <span>大小：{sourceImage ? formatBytes(sourceImage.size) : "-"}</span>
+                      <span>尺寸：{sourceSize ? `${sourceSize.width} x ${sourceSize.height}` : "-"}</span>
                     </div>
-                    <CheckCircle2 size={18} />
                   </div>
-                ))}
-              {totalAuditCount === 0 ? <div className="empty-preview">暂无调用记录</div> : null}
-            </div>
-          </section>
-        ) : null}
-      </main>
+
+                  <div className="preview-card">
+                    <h2>压缩后</h2>
+                    {compressedImage ? <img src={compressedImage.url} alt="压缩后预览" /> : <div className="empty-preview">等待压缩</div>}
+                    <div className="info-list">
+                      <span>大小：{compressedImage ? formatBytes(compressedImage.size) : "-"}</span>
+                      <span>尺寸：{compressedImage ? `${compressedImage.width} x ${compressedImage.height}` : "-"}</span>
+                      <span>
+                        节省：
+                        {sourceImage && compressedImage
+                          ? `${Math.max(0, 100 - (compressedImage.size / sourceImage.size) * 100).toFixed(1)}%`
+                          : "-"}
+                      </span>
+                    </div>
+                    {compressedImage ? (
+                      <a className="download-button" href={compressedImage.url} download={compressedImage.name}>
+                        <Download size={18} />
+                        下载图片
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {activePage === "regex-collection" ? (
+            <section className="tool-page regex-page">
+              <div className="page-title">
+                <div>
+                  <p className="eyebrow">文字应用</p>
+                  <h1>正则大全</h1>
+                  <p>搜索常用正则，复制表达式，并直接用测试文本验证匹配结果。</p>
+                </div>
+                <Braces size={26} />
+              </div>
+
+              <div className="regex-layout">
+                <aside className="regex-list">
+                  <div className="mini-search">
+                    <Search size={17} />
+                    <input value={regexSearch} onChange={(event) => setRegexSearch(event.target.value)} placeholder="搜索邮箱、手机号、URL..." />
+                  </div>
+                  {filteredRegexRecipes.map((recipe) => (
+                    <button
+                      type="button"
+                      key={recipe.id}
+                      className={recipe.id === selectedRegexId ? "active" : ""}
+                      onClick={() => selectRegex(recipe)}
+                    >
+                      <strong>{recipe.title}</strong>
+                      <span>{recipe.category}</span>
+                    </button>
+                  ))}
+                </aside>
+
+                <div className="regex-detail">
+                  <div className="regex-header">
+                    <div>
+                      <h2>{selectedRegex.title}</h2>
+                      <p>{selectedRegex.description}</p>
+                    </div>
+                    <button type="button" className="copy-button" onClick={copyRegex}>
+                      <Copy size={17} />
+                      {copied ? "已复制" : "复制"}
+                    </button>
+                  </div>
+
+                  <label className="pattern-box">
+                    <span>正则表达式</span>
+                    <input value={regexPattern} onChange={(event) => setRegexPattern(event.target.value)} />
+                  </label>
+
+                  <label className="pattern-box short">
+                    <span>Flags</span>
+                    <input value={regexFlags} onChange={(event) => setRegexFlags(event.target.value)} />
+                  </label>
+
+                  <label className="test-area">
+                    <span>测试文本</span>
+                    <textarea value={regexText} onChange={(event) => setRegexText(event.target.value)} />
+                  </label>
+
+                  <div className="match-panel">
+                    <h3>匹配结果：{regexMatches.length}</h3>
+                    {regexMatches.length > 0 ? (
+                      regexMatches.map((match, index) => (
+                        <div className="match-row" key={`${match.value}-${match.index}-${index}`}>
+                          <strong>{match.value}</strong>
+                          <span>index {match.index}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="empty-preview">暂无匹配</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {activePage === "json-tools" ? (
+            <section className="tool-page json-page">
+              <div className="page-title">
+                <div>
+                  <p className="eyebrow">智能应用</p>
+                  <h1>JSON 工具</h1>
+                  <p>这里使用后端 Runtime 执行工具，会记录审计日志。</p>
+                </div>
+                <FileJson2 size={26} />
+              </div>
+
+              <div className="json-layout">
+                <div className="json-tools">
+                  {apiTools.map((tool) => (
+                    <button
+                      type="button"
+                      key={tool.name}
+                      className={tool.name === selectedApiTool ? "active" : ""}
+                      onClick={() => {
+                        setSelectedApiTool(tool.name);
+                        setJsonInput(apiExamples[tool.name] ?? "{}");
+                        setJsonResult(null);
+                      }}
+                    >
+                      <strong>{tool.title}</strong>
+                      <span>{tool.description}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="json-runner">
+                  {selectedTool ? (
+                    <div className="tool-note">
+                      <strong>{selectedTool.title}</strong>
+                      <span>{selectedTool.description}</span>
+                    </div>
+                  ) : null}
+                  <label>
+                    <span>输入 JSON</span>
+                    <textarea value={jsonInput} onChange={(event) => setJsonInput(event.target.value)} />
+                  </label>
+                  <button type="button" className="primary-action" onClick={runJsonTool} disabled={isJsonRunning}>
+                    <Play size={18} />
+                    {isJsonRunning ? "执行中..." : "运行工具"}
+                  </button>
+                </div>
+
+                <pre className="result-view">{jsonResult ? pretty(jsonResult) : "等待执行..."}</pre>
+              </div>
+            </section>
+          ) : null}
+
+          {activePage === "audit" ? (
+            <section className="tool-page audit-page">
+              <div className="page-title">
+                <div>
+                  <p className="eyebrow">智能应用</p>
+                  <h1>调用审计</h1>
+                  <p>展示 API 工具和浏览器本地工具的最近调用。</p>
+                </div>
+                <Database size={26} />
+              </div>
+
+              <div className="audit-list">
+                {[...auditCalls.map((call) => ({
+                  id: call.id,
+                  tool_name: call.tool_name,
+                  source: "api",
+                  status: call.status,
+                  duration_ms: call.duration_ms,
+                  created_at: call.created_at
+                })), ...localHistory]
+                  .slice()
+                  .reverse()
+                  .map((call) => (
+                    <div className="audit-row" key={call.id}>
+                      <span className={`status-dot ${call.status === "success" ? "ok" : "error"}`} />
+                      <div>
+                        <strong>{call.tool_name}</strong>
+                        <small>
+                          {call.source} · {call.status} · {call.duration_ms}ms · {new Date(call.created_at).toLocaleString()}
+                        </small>
+                      </div>
+                      <CheckCircle2 size={18} />
+                    </div>
+                  ))}
+                {totalAuditCount === 0 ? <div className="empty-preview">暂无调用记录</div> : null}
+              </div>
+            </section>
+          ) : null}
+        </main>
+      </div>
+
+      <footer className="app-footer">
+        <span>Copyright @ 2026 Agent Toolbox</span>
+        <span>本地优先 · 插件化工具运行时 · AI Agent 可调用</span>
+      </footer>
     </div>
   );
 }

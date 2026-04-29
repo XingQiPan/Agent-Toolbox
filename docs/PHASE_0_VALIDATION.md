@@ -284,9 +284,11 @@ Expected behavior:
 
 - Vite serves the console on `http://127.0.0.1:5173` or the next available port.
 - The console shows API status as connected.
-- The home page shows plugin, tool, and audit counts.
-- The top navigation switches between home, image compression, regex collection,
-  JSON tools, and audit pages.
+- The top bar shows brand, function list, global search, refresh, filter, and
+  login controls.
+- The left sidebar switches home categories such as daily, query, document,
+  intelligent, image, audio, video, text, encryption, unit, and life tools.
+- The home page shows a gray-card tool grid with usable tools and planned tools.
 - Navigation updates the address bar, so `/image-compress` and
   `/regex-collection` can be refreshed or shared during demos.
 - The image compression page lets a user upload an image, adjust quality,
