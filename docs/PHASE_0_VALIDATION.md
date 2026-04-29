@@ -1,0 +1,248 @@
+# Phase 0 Validation
+
+This checklist validates the current Phase 0 TypeScript pnpm monorepo after the
+Core, CLI, API, and docs worktrees are integrated.
+
+## Environment
+
+Run from the repository root.
+
+Expected tools:
+
+- Node.js 24.x.
+- pnpm 10.30.3.
+
+Install dependencies from the committed lockfile:
+
+```powershell
+pnpm install --frozen-lockfile
+```
+
+## Repository Checks
+
+Confirm you are in the expected worktree or integration branch and that no
+unrelated changes are mixed in:
+
+```powershell
+git status --short --branch
+git worktree list
+```
+
+Expected Phase 0 worktrees:
+
+```text
+E:/Codes/Agent-Toolbox-agent-core-phase-0-runtime    agent/core/phase-0-runtime
+E:/Codes/Agent-Toolbox-agent-api-phase-0-service     agent/api/phase-0-service
+E:/Codes/Agent-Toolbox-agent-cli-phase-0-json-plugin agent/cli/phase-0-json-plugin
+E:/Codes/Agent-Toolbox-agent-docs-phase-0-validation agent/docs/phase-0-validation
+```
+
+## Build And Tests
+
+```powershell
+pnpm build
+pnpm test
+```
+
+Expected result:
+
+- `pnpm build` runs `tsc` for `packages/core`, `packages/plugin-sdk`,
+  `plugins/json-basic`, `apps/api`, and `apps/cli`.
+- `pnpm test` runs `pnpm build` and Vitest.
+- Vitest reports `1 passed` test file and `2 passed` tests in the Phase 0
+  baseline.
+
+## CLI Validation
+
+List plugins:
+
+```powershell
+pnpm --filter @agent-toolbox/cli dev -- plugin list
+```
+
+Expected behavior:
+
+- Exit code is `0`.
+- JSON includes one plugin with `id: "json.basic"`.
+- `tools_count` is `2`.
+
+Search JSON tools:
+
+```powershell
+pnpm --filter @agent-toolbox/cli dev -- tool search json
+```
+
+Expected behavior:
+
+- Exit code is `0`.
+- `tools` includes `json.format` and `json.validate`.
+- Each tool includes `name`, `title`, `description`, `category`,
+  `risk_level`, `input_schema`, `output_schema`, and `plugin_id`.
+- `plugin_id` is `json.basic`.
+
+Inspect a tool:
+
+```powershell
+pnpm --filter @agent-toolbox/cli dev -- tool info json.format
+```
+
+Expected behavior:
+
+- Exit code is `0`.
+- Output describes `json.format`.
+- `input_schema.required` includes `text`.
+- `output_schema.required` includes `formatted`.
+
+Run JSON formatting:
+
+```powershell
+pnpm --filter @agent-toolbox/cli dev -- tool run json.format --json '{"text":"{\"name\":\"aitbx\"}","indent":2}'
+```
+
+Expected behavior:
+
+- Exit code is `0`.
+- Output has `ok: true`.
+- `result.summary` is `JSON formatted successfully.`
+- `result.artifacts` is an empty array.
+- `result.data.formatted` equals:
+
+```json
+"{\n  \"name\": \"aitbx\"\n}"
+```
+
+Run JSON validation:
+
+```powershell
+pnpm --filter @agent-toolbox/cli dev -- tool run json.validate --json '{"text":"{\"name\":\"aitbx\"}"}'
+```
+
+Expected behavior:
+
+- Exit code is `0`.
+- Output has `ok: true`.
+- `result.summary` is `JSON is valid.`
+- `result.data.valid` is `true`.
+
+Negative CLI smoke check:
+
+```powershell
+pnpm --filter @agent-toolbox/cli dev -- tool info missing.tool
+```
+
+Expected behavior:
+
+- Exit code is non-zero.
+- stderr includes `Tool not found: missing.tool`.
+
+## API Validation
+
+Start the API:
+
+```powershell
+pnpm --filter @agent-toolbox/api dev
+```
+
+The API listens on `http://127.0.0.1:8787` by default. If that port is occupied,
+run on another port and use that port in the probes below:
+
+```powershell
+$env:PORT = "18787"
+pnpm --filter @agent-toolbox/api dev
+```
+
+Health:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8787/health
+```
+
+Expected response:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "status": "ok"
+  }
+}
+```
+
+List plugins:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8787/v1/plugins
+```
+
+Expected behavior:
+
+- Response has `ok: true`.
+- `data.plugins` includes `json.basic`.
+- The plugin has `enabled: true` and `tools_count: 2`.
+
+Search tools:
+
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8787/v1/tools/search?q=json"
+```
+
+Expected behavior:
+
+- Response has `ok: true`.
+- `data.tools` includes `json.format` and `json.validate`.
+
+Get tool details:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8787/v1/tools/json.format
+```
+
+Expected behavior:
+
+- Response has `ok: true`.
+- `data.name` is `json.format`.
+- `data.plugin_id` is `json.basic`.
+- `data.input_schema.required` includes `text`.
+
+Run a tool:
+
+```powershell
+$body = @{ input = @{ text = '{"name":"aitbx"}'; indent = 2 } } | ConvertTo-Json
+Invoke-RestMethod http://127.0.0.1:8787/v1/tools/json.format/run `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+Expected behavior:
+
+- Response has top-level `ok: true`.
+- `data.ok` is `true`.
+- `data.result.data.formatted` equals `"{\n  \"name\": \"aitbx\"\n}"`.
+- `data.usage.cost_usd` is `0`.
+
+Missing tool:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8787/v1/tools/missing.tool
+```
+
+Expected behavior:
+
+- HTTP status is `404`.
+- Response has `ok: false`.
+- `error.code` is `TOOL_NOT_FOUND`.
+
+## Phase 0 Completion Criteria
+
+Phase 0 is valid when:
+
+- Build and tests pass from a clean install.
+- CLI can list the `json.basic` plugin, search tools, inspect tool metadata, and
+  run both JSON tools.
+- API can serve health, plugin list, tool search, tool detail, and tool run
+  endpoints using the unified `{ ok, data, error }` envelope.
+- `json.format` and `json.validate` are low-risk built-in tools with no file,
+  network, secret, or shell permissions.
+- Runtime tool calls return structured results with `summary`, `artifacts`,
+  `data`, and `usage`.
