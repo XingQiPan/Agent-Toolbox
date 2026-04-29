@@ -97,7 +97,7 @@ const pages: Array<{ id: PageId; label: string }> = [
   { id: "home", label: "首页" },
   { id: "image-compress", label: "图片压缩" },
   { id: "regex-collection", label: "正则大全" },
-  { id: "json-tools", label: "JSON 工具" },
+  { id: "json-tools", label: "数据工具" },
   { id: "audit", label: "审计" }
 ];
 
@@ -116,9 +116,9 @@ const sidebarItems: Array<{ label: string; icon: AppIcon }> = [
   { label: "生活应用", icon: Droplets }
 ];
 
-const apiExamples: Record<string, string> = {
-  "json.format": JSON.stringify({ text: "{\"name\":\"aitbx\"}", indent: 2 }, null, 2),
-  "json.validate": JSON.stringify({ text: "{\"name\":\"aitbx\"}" }, null, 2)
+const jsonTextExamples: Record<string, string> = {
+  "json.format": '{\n  "name": "aitbx",\n  "kind": "toolbox"\n}',
+  "json.validate": '{"name":"aitbx"}'
 };
 
 const pinnedTools: HomeTool[] = [
@@ -135,8 +135,8 @@ const pinnedTools: HomeTool[] = [
     page: "regex-collection"
   },
   {
-    title: "JSON 格式化",
-    description: "通过 Runtime 格式化 JSON",
+    title: "数据格式化",
+    description: "把结构化数据整理成易读格式",
     icon: FileJson2,
     page: "json-tools",
     apiTool: "json.format"
@@ -154,7 +154,7 @@ const homeSections: HomeSection[] = [
     title: "日常应用",
     tools: [
       { title: "调用审计", description: "查看工具调用记录", icon: Activity, page: "audit" },
-      { title: "JSON 验证", description: "检查 JSON 是否合法", icon: CheckCircle2, page: "json-tools", apiTool: "json.validate" },
+      { title: "数据验证", description: "检查结构化数据是否合法", icon: CheckCircle2, page: "json-tools", apiTool: "json.validate" },
       { title: "二维码生成", description: "输入文本生成二维码", icon: QrCode, planned: true },
       { title: "今日黄金价格", description: "实时查看黄金价格行情", icon: Coins, planned: true },
       { title: "今日电影票房榜", description: "查看电影票房排行", icon: Video, planned: true },
@@ -169,12 +169,12 @@ const homeSections: HomeSection[] = [
     title: "查询应用",
     tools: [
       { title: "企业查询", description: "查询企业工商信息", icon: Building2, planned: true },
-      { title: "归属地查询", description: "查询手机号、IP 地址归属地", icon: MapPin, planned: true },
+      { title: "归属地查询", description: "查询手机号、网络地址归属地", icon: MapPin, planned: true },
       { title: "邮编查询", description: "查询全国邮政编码", icon: Hash, planned: true },
       { title: "经纬度查询", description: "根据经纬度查询地理位置", icon: MapPin, planned: true },
       { title: "世界时间", description: "全球主要城市时间查询", icon: CalendarDays, planned: true },
       { title: "汇率查询", description: "常用币种汇率换算", icon: Coins, planned: true },
-      { title: "IP 查询", description: "查询 IP 信息", icon: Search, planned: true },
+      { title: "网络地址查询", description: "查询网络地址信息", icon: Search, planned: true },
       { title: "域名查询", description: "查看域名基础信息", icon: Link2, planned: true }
     ]
   },
@@ -191,9 +191,9 @@ const homeSections: HomeSection[] = [
   {
     title: "智能应用",
     tools: [
-      { title: "JSON 格式化", description: "格式化 JSON 文本", icon: FileJson2, page: "json-tools", apiTool: "json.format" },
-      { title: "JSON 验证", description: "验证 JSON 文本", icon: CheckCircle2, page: "json-tools", apiTool: "json.validate" },
-      { title: "Agent 调用审计", description: "查看 API 和本地工具调用", icon: Database, page: "audit" },
+      { title: "数据格式化", description: "格式化结构化文本", icon: FileJson2, page: "json-tools", apiTool: "json.format" },
+      { title: "数据验证", description: "验证结构化文本", icon: CheckCircle2, page: "json-tools", apiTool: "json.validate" },
+      { title: "调用审计", description: "查看接口和本地工具调用", icon: Database, page: "audit" },
       { title: "工具搜索", description: "按能力搜索工具", icon: Search, planned: true },
       { title: "插件市场", description: "安装和管理插件", icon: Box, planned: true }
     ]
@@ -229,7 +229,7 @@ const homeSections: HomeSection[] = [
     tools: [
       { title: "正则大全", description: "搜索、编辑并测试正则", icon: Braces, page: "regex-collection" },
       { title: "文本统计", description: "统计字数、行数和字符数", icon: BarChart3, planned: true },
-      { title: "URL 编码", description: "URL 编码和解码", icon: Link2, planned: true },
+      { title: "链接编码", description: "链接内容编码和解码", icon: Link2, planned: true },
       { title: "Base64", description: "Base64 编码和解码", icon: Hash, planned: true },
       { title: "命名转换", description: "camelCase、snake_case 互转", icon: Code2, planned: true }
     ]
@@ -238,7 +238,7 @@ const homeSections: HomeSection[] = [
     title: "加密应用",
     tools: [
       { title: "哈希计算", description: "计算文本摘要", icon: ShieldCheck, planned: true },
-      { title: "JWT 解码", description: "解析 JWT 内容", icon: LockKeyhole, planned: true },
+      { title: "令牌解码", description: "解析令牌内容", icon: LockKeyhole, planned: true },
       { title: "密码生成", description: "生成安全随机密码", icon: LockKeyhole, planned: true }
     ]
   },
@@ -281,21 +281,21 @@ const regexRecipes: RegexRecipe[] = [
   },
   {
     id: "url",
-    title: "URL 链接",
+    title: "网页链接",
     category: "网络",
     pattern: "https?:\\/\\/[^\\s]+",
     flags: "g",
     sample: "官网 https://www.magicalbox.cn/ 文档 https://example.com/docs?a=1",
-    description: "匹配 http 和 https 链接。"
+    description: "匹配常见网页链接。"
   },
   {
     id: "ipv4",
-    title: "IPv4 地址",
+    title: "网络地址",
     category: "网络",
     pattern: "\\b(?:(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\b",
     flags: "g",
     sample: "本机 127.0.0.1，网关 192.168.1.1，错误 999.1.1.1",
-    description: "匹配合法 IPv4 地址。"
+    description: "匹配合法网络地址。"
   },
   {
     id: "date",
@@ -308,12 +308,12 @@ const regexRecipes: RegexRecipe[] = [
   },
   {
     id: "hex-color",
-    title: "HEX 颜色",
+    title: "十六进制颜色",
     category: "前端",
     pattern: "#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\\b",
     flags: "g",
     sample: "主题色 #409eff，强调色 #12B981，错误色 #f04438",
-    description: "匹配 3 位或 6 位 HEX 颜色。"
+    description: "匹配 3 位或 6 位十六进制颜色。"
   },
   {
     id: "chinese",
@@ -321,7 +321,7 @@ const regexRecipes: RegexRecipe[] = [
     category: "文本",
     pattern: "[\\u4e00-\\u9fa5]+",
     flags: "g",
-    sample: "Agent Toolbox 是一个 AI 工具箱 Runtime。",
+    sample: "智能体工具箱是一个可被智能体调用的本地工具运行时。",
     description: "提取连续中文字符。"
   },
   {
@@ -337,6 +337,55 @@ const regexRecipes: RegexRecipe[] = [
 
 function pretty(value: unknown): string {
   return JSON.stringify(value, null, 2);
+}
+
+function localizeToolName(name: string): string {
+  const names: Record<string, string> = {
+    "json.format": "数据格式化",
+    "json.validate": "数据验证",
+    "image.compress": "图片压缩"
+  };
+  return names[name] ?? name;
+}
+
+function localizeToolDescription(tool: ToolSummary): string {
+  const descriptions: Record<string, string> = {
+    "json.format": "把结构化数据解析后整理成带缩进的易读格式。",
+    "json.validate": "检查一段结构化数据是否可以被正常解析。"
+  };
+  return descriptions[tool.name] ?? tool.description;
+}
+
+function localizeSummary(summary: string, toolName: string): string {
+  if (toolName === "json.format") return "格式化完成。";
+  if (toolName === "json.validate" && summary.includes("invalid")) return "数据内容无效。";
+  if (toolName === "json.validate") return "数据内容有效。";
+  return summary;
+}
+
+function localizeCallStatus(status: "success" | "error"): string {
+  return status === "success" ? "成功" : "失败";
+}
+
+function localizeCallSource(source: string): string {
+  if (source === "api") return "接口";
+  if (source === "local") return "浏览器本地";
+  return source;
+}
+
+function resultText(result: ToolRunResponse | null, toolName: string): string {
+  if (!result) return "";
+  const data = result.result.data;
+  if (toolName === "json.format" && typeof data.formatted === "string") return data.formatted;
+  if (toolName === "json.validate") {
+    if (data.valid === true) return "数据内容有效，可以正常解析。";
+    const error = data.error;
+    if (error && typeof error === "object" && "message" in error) {
+      return `数据内容无效：${String(error.message)}`;
+    }
+    return "数据内容无效。";
+  }
+  return pretty(result.result.data);
 }
 
 function formatBytes(bytes: number): string {
@@ -393,9 +442,11 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
 
   const [selectedApiTool, setSelectedApiTool] = useState("json.format");
-  const [jsonInput, setJsonInput] = useState(apiExamples["json.format"]);
+  const [jsonText, setJsonText] = useState(jsonTextExamples["json.format"]);
+  const [jsonIndent, setJsonIndent] = useState(2);
   const [jsonResult, setJsonResult] = useState<ToolRunResponse | null>(null);
   const [isJsonRunning, setIsJsonRunning] = useState(false);
+  const [resultCopied, setResultCopied] = useState(false);
 
   const [sourceImage, setSourceImage] = useState<File | null>(null);
   const [sourcePreview, setSourcePreview] = useState<string | null>(null);
@@ -475,7 +526,7 @@ export function App() {
       setAuditCalls(auditResult.calls);
     } catch (caught) {
       setHealth("error");
-      setError(caught instanceof Error ? caught.message : "API 未连接，图片压缩和正则工具仍可本地使用");
+      setError(caught instanceof Error ? caught.message : "接口未连接，图片压缩和正则工具仍可本地使用");
     }
   }
 
@@ -524,8 +575,9 @@ export function App() {
     if (tool.planned || !tool.page) return;
     if (tool.apiTool) {
       setSelectedApiTool(tool.apiTool);
-      setJsonInput(apiExamples[tool.apiTool] ?? "{}");
+      setJsonText(jsonTextExamples[tool.apiTool] ?? "{}");
       setJsonResult(null);
+      setResultCopied(false);
     }
     navigate(tool.page);
   }
@@ -539,14 +591,20 @@ export function App() {
   async function runJsonTool() {
     setIsJsonRunning(true);
     setError(null);
+    setResultCopied(false);
     try {
-      const parsed = JSON.parse(jsonInput) as Record<string, unknown>;
-      const result = await api.runTool(selectedApiTool, parsed);
+      const input =
+        selectedApiTool === "json.format"
+          ? { text: jsonText, indent: jsonIndent }
+          : selectedApiTool === "json.validate"
+            ? { text: jsonText }
+            : (JSON.parse(jsonText) as Record<string, unknown>);
+      const result = await api.runTool(selectedApiTool, input);
       setJsonResult(result);
       const auditResult = await api.auditCalls();
       setAuditCalls(auditResult.calls);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "JSON 工具执行失败");
+      setError(caught instanceof Error ? caught.message : "数据工具执行失败");
     } finally {
       setIsJsonRunning(false);
     }
@@ -635,6 +693,14 @@ export function App() {
     window.setTimeout(() => setCopied(false), 1200);
   }
 
+  async function copyResult() {
+    const text = resultText(jsonResult, selectedApiTool);
+    if (!text) return;
+    await copyText(text);
+    setResultCopied(true);
+    window.setTimeout(() => setResultCopied(false), 1200);
+  }
+
   function selectRegex(recipe: RegexRecipe) {
     setSelectedRegexId(recipe.id);
     setRegexPattern(recipe.pattern);
@@ -650,11 +716,11 @@ export function App() {
           <span className="brand-mark">
             <Box size={21} />
           </span>
-          <strong>Agent 工具箱</strong>
+          <strong>智能体工具箱</strong>
         </button>
 
         <div className="top-meta">
-          <span>Agent Runtime · 本地运行</span>
+          <span>本地工具运行时</span>
           <button type="button" className="function-list" onClick={() => selectSidebar("首页")}>
             <List size={15} />
             功能列表
@@ -674,12 +740,12 @@ export function App() {
               placeholder={`搜索${totalToolCount}项功能`}
             />
           </label>
-          <button type="button" className="icon-button" title="刷新 API" onClick={refresh}>
+          <button type="button" className="icon-button" title="刷新接口状态" onClick={refresh}>
             <RefreshCcw size={18} />
           </button>
-          <button type="button" className={`runtime-pill ${health}`} onClick={() => navigate("audit")} title="查看 Runtime 调用审计">
+          <button type="button" className={`runtime-pill ${health}`} onClick={() => navigate("audit")} title="查看工具运行审计">
             <span className={`status-dot ${health}`} />
-            <span>{health === "ok" ? "API 已连接" : health === "checking" ? "检查中" : "API 未连接"}</span>
+            <span>{health === "ok" ? "接口已连接" : health === "checking" ? "检查中" : "接口未连接"}</span>
             <small>{plugins.length} 插件 · {apiTools.length} 工具</small>
           </button>
         </div>
@@ -738,10 +804,10 @@ export function App() {
 
               <div className="stats-strip">
                 <span>插件 {plugins.length}</span>
-                <span>API 工具 {apiTools.length}</span>
+                <span>接口工具 {apiTools.length}</span>
                 <span>调用 {totalAuditCount}</span>
                 <span className={health === "ok" ? "ok" : health === "error" ? "error" : ""}>
-                  {health === "ok" ? "API 已连接" : health === "checking" ? "API 检查中" : "API 未连接"}
+                  {health === "ok" ? "接口已连接" : health === "checking" ? "接口检查中" : "接口未连接"}
                 </span>
               </div>
 
@@ -867,7 +933,7 @@ export function App() {
                 <aside className="regex-list">
                   <div className="mini-search">
                     <Search size={17} />
-                    <input value={regexSearch} onChange={(event) => setRegexSearch(event.target.value)} placeholder="搜索邮箱、手机号、URL..." />
+                    <input value={regexSearch} onChange={(event) => setRegexSearch(event.target.value)} placeholder="搜索邮箱、手机号、链接..." />
                   </div>
                   {filteredRegexRecipes.map((recipe) => (
                     <button
@@ -899,10 +965,10 @@ export function App() {
                     <input value={regexPattern} onChange={(event) => setRegexPattern(event.target.value)} />
                   </label>
 
-                  <label className="pattern-box short">
-                    <span>Flags</span>
-                    <input value={regexFlags} onChange={(event) => setRegexFlags(event.target.value)} />
-                  </label>
+                <label className="pattern-box short">
+                  <span>匹配选项</span>
+                  <input value={regexFlags} onChange={(event) => setRegexFlags(event.target.value)} />
+                </label>
 
                   <label className="test-area">
                     <span>测试文本</span>
@@ -915,7 +981,7 @@ export function App() {
                       regexMatches.map((match, index) => (
                         <div className="match-row" key={`${match.value}-${match.index}-${index}`}>
                           <strong>{match.value}</strong>
-                          <span>index {match.index}</span>
+                          <span>位置 {match.index}</span>
                         </div>
                       ))
                     ) : (
@@ -932,8 +998,8 @@ export function App() {
               <div className="page-title">
                 <div>
                   <p className="eyebrow">智能应用</p>
-                  <h1>JSON 工具</h1>
-                  <p>这里使用后端 Runtime 执行工具，会记录审计日志。</p>
+                  <h1>数据工具</h1>
+                  <p>这里使用后端工具运行时执行任务，会记录审计日志；页面展示给人看的结果。</p>
                 </div>
                 <FileJson2 size={26} />
               </div>
@@ -947,12 +1013,13 @@ export function App() {
                       className={tool.name === selectedApiTool ? "active" : ""}
                       onClick={() => {
                         setSelectedApiTool(tool.name);
-                        setJsonInput(apiExamples[tool.name] ?? "{}");
+                        setJsonText(jsonTextExamples[tool.name] ?? "{}");
                         setJsonResult(null);
+                        setResultCopied(false);
                       }}
                     >
-                      <strong>{tool.title}</strong>
-                      <span>{tool.description}</span>
+                      <strong>{localizeToolName(tool.name)}</strong>
+                      <span>{localizeToolDescription(tool)}</span>
                     </button>
                   ))}
                 </div>
@@ -960,21 +1027,103 @@ export function App() {
                 <div className="json-runner">
                   {selectedTool ? (
                     <div className="tool-note">
-                      <strong>{selectedTool.title}</strong>
-                      <span>{selectedTool.description}</span>
+                      <strong>{localizeToolName(selectedTool.name)}</strong>
+                      <span>{localizeToolDescription(selectedTool)}</span>
                     </div>
                   ) : null}
                   <label>
-                    <span>输入 JSON</span>
-                    <textarea value={jsonInput} onChange={(event) => setJsonInput(event.target.value)} />
+                    <span>粘贴需要处理的数据内容</span>
+                    <textarea value={jsonText} onChange={(event) => setJsonText(event.target.value)} />
                   </label>
+                  {selectedApiTool === "json.format" ? (
+                    <label className="indent-field">
+                      <span>缩进空格</span>
+                      <select value={jsonIndent} onChange={(event) => setJsonIndent(Number(event.target.value))}>
+                        <option value={0}>不缩进</option>
+                        <option value={2}>2 个空格</option>
+                        <option value={4}>4 个空格</option>
+                        <option value={8}>8 个空格</option>
+                      </select>
+                    </label>
+                  ) : null}
                   <button type="button" className="primary-action" onClick={runJsonTool} disabled={isJsonRunning}>
                     <Play size={18} />
                     {isJsonRunning ? "执行中..." : "运行工具"}
                   </button>
                 </div>
 
-                <pre className="result-view">{jsonResult ? pretty(jsonResult) : "等待执行..."}</pre>
+                <div className="result-panel">
+                  <div className="result-header">
+                    <div>
+                      <span className="result-kicker">运行结果</span>
+                      <h2>{jsonResult ? localizeSummary(jsonResult.result.summary, selectedApiTool) : "等待执行"}</h2>
+                    </div>
+                    {jsonResult ? (
+                      <button type="button" className="copy-button" onClick={copyResult}>
+                        <Copy size={17} />
+                        {resultCopied ? "已复制" : "复制结果"}
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {!jsonResult ? (
+                    <div className="result-empty">
+                      <FileJson2 size={28} />
+                      <strong>还没有运行结果</strong>
+                      <span>点击“运行工具”后，这里会显示适合用户阅读的结果卡片。</span>
+                    </div>
+                  ) : selectedApiTool === "json.format" ? (
+                    <label className="human-output">
+                      <span>格式化后的内容</span>
+                      <textarea readOnly value={resultText(jsonResult, selectedApiTool)} />
+                    </label>
+                  ) : (
+                    <div className={`validation-result ${jsonResult.result.data.valid === true ? "valid" : "invalid"}`}>
+                      <CheckCircle2 size={26} />
+                      <div>
+                        <strong>{jsonResult.result.data.valid === true ? "数据内容有效" : "数据内容无效"}</strong>
+                        <span>
+                          {jsonResult.result.data.valid === true
+                            ? "这段内容可以被正常解析。"
+                            : "请根据错误信息修正后再试。"}
+                        </span>
+                        {jsonResult.result.data.valid === false &&
+                        jsonResult.result.data.error &&
+                        typeof jsonResult.result.data.error === "object" ? (
+                          <dl>
+                            {"message" in jsonResult.result.data.error ? (
+                              <>
+                                <dt>错误信息</dt>
+                                <dd>{String(jsonResult.result.data.error.message)}</dd>
+                              </>
+                            ) : null}
+                            {"position" in jsonResult.result.data.error ? (
+                              <>
+                                <dt>错误位置</dt>
+                                <dd>{String(jsonResult.result.data.error.position)}</dd>
+                              </>
+                            ) : null}
+                          </dl>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
+
+                  {jsonResult ? (
+                    <div className="result-meta">
+                      <span>工具：{localizeToolName(jsonResult.tool_name)}</span>
+                      <span>耗时：{jsonResult.usage.duration_ms}ms</span>
+                      <span>费用：{jsonResult.usage.cost_usd === 0 ? "无" : `$${jsonResult.usage.cost_usd}`}</span>
+                    </div>
+                  ) : null}
+
+                  {jsonResult ? (
+                    <details className="raw-result">
+                      <summary>给智能体或调试使用的原始数据</summary>
+                      <pre>{pretty(jsonResult)}</pre>
+                    </details>
+                  ) : null}
+                </div>
               </div>
             </section>
           ) : null}
@@ -985,7 +1134,7 @@ export function App() {
                 <div>
                   <p className="eyebrow">智能应用</p>
                   <h1>调用审计</h1>
-                  <p>展示 API 工具和浏览器本地工具的最近调用。</p>
+                  <p>展示接口工具和浏览器本地工具的最近调用。</p>
                 </div>
                 <Database size={26} />
               </div>
@@ -1005,9 +1154,10 @@ export function App() {
                     <div className="audit-row" key={call.id}>
                       <span className={`status-dot ${call.status === "success" ? "ok" : "error"}`} />
                       <div>
-                        <strong>{call.tool_name}</strong>
+                        <strong>{localizeToolName(call.tool_name)}</strong>
                         <small>
-                          {call.source} · {call.status} · {call.duration_ms}ms · {new Date(call.created_at).toLocaleString()}
+                          {localizeCallSource(call.source)} · {localizeCallStatus(call.status)} · {call.duration_ms}ms ·{" "}
+                          {new Date(call.created_at).toLocaleString()}
                         </small>
                       </div>
                       <CheckCircle2 size={18} />
@@ -1021,8 +1171,8 @@ export function App() {
       </div>
 
       <footer className="app-footer">
-        <span>Copyright @ 2026 Agent Toolbox</span>
-        <span>本地优先 · 插件化工具运行时 · AI Agent 可调用</span>
+        <span>版权所有 © 2026 智能体工具箱</span>
+        <span>本地优先 · 插件化工具运行时 · 智能体可调用</span>
       </footer>
     </div>
   );

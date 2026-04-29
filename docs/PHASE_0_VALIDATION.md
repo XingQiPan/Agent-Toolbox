@@ -283,9 +283,9 @@ pnpm --filter @agent-toolbox/web dev
 Expected behavior:
 
 - Vite serves the console on `http://127.0.0.1:5173` or the next available port.
-- The console shows API status as connected.
-- The top bar shows brand, function list, global search, refresh, and
-  Runtime/API status controls.
+- The console shows interface status as connected.
+- The top bar shows Chinese brand, function list, global search, refresh, and
+  runtime status controls.
 - The left sidebar switches home categories such as daily, query, document,
   intelligent, image, audio, video, text, encryption, unit, and life tools.
 - The home page shows a gray-card tool grid with usable tools and planned tools.
@@ -296,6 +296,8 @@ Expected behavior:
   download the compressed file.
 - The regex collection page lets a user search common regex recipes, edit or
   copy a pattern, edit flags and test text, and view match results.
-- Selecting `json.format` shows editable JSON input.
-- Running the tool displays the formatted JSON result and appends an audit call.
-- Local image compression and regex testing can run without API calls.
+- Selecting `json.format` shows a user-facing content input and indentation
+  selector instead of requiring the user to edit API parameter JSON.
+- Running the tool displays a human-readable result card or copyable formatted
+  content, while raw structured data is hidden behind a debugging details panel.
+- Local image compression and regex testing can run without interface calls.
